@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Medicine = require('../models/Medicine');
 const ApiError = require('../utils/ApiError');
 const { parsePagination, buildMeta } = require('../utils/pagination');
 
@@ -57,6 +58,32 @@ async function removeAddress(userId, addressId) {
   return user;
 }
 
+async function getWishlist(userId) {
+  const user = await User.findById(userId).populate({
+    path: 'wishlist',
+    populate: [
+      { path: 'category', select: 'name slug' },
+      { path: 'pharmacy', select: 'name isVerified' },
+    ],
+  });
+  return user.wishlist.filter((medicine) => medicine != null);
+}
+
+async function addToWishlist(userId, medicineId) {
+  const medicine = await Medicine.findById(medicineId);
+  if (!medicine) {
+    throw ApiError.notFound('Medicine not found');
+  }
+
+  await User.updateOne({ _id: userId }, { $addToSet: { wishlist: medicineId } });
+  return getWishlist(userId);
+}
+
+async function removeFromWishlist(userId, medicineId) {
+  await User.updateOne({ _id: userId }, { $pull: { wishlist: medicineId } });
+  return getWishlist(userId);
+}
+
 async function list(query) {
   const { page, limit, skip } = parsePagination(query);
   const filter = {};
@@ -91,6 +118,9 @@ module.exports = {
   addAddress,
   updateAddress,
   removeAddress,
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
   list,
   getById,
   adminUpdate,

@@ -43,4 +43,9 @@ class CatalogRepository {
 
     return MedicinePage(items: items, total: total);
   }
+
+  Future<MedicineModel> fetchMedicineById(String id) async {
+    final data = await _apiClient.get('/medicines/$id') as Map<String, dynamic>;
+    return MedicineModel.fromJson(data);
+  }
 }

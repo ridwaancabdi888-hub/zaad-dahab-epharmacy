@@ -67,6 +67,9 @@ Base path: `API_PREFIX` (default `/api/v1`)
 | POST | `/users/me/addresses` | Bearer | Add a saved delivery address |
 | PATCH | `/users/me/addresses/:addressId` | Bearer | Update a saved address |
 | DELETE | `/users/me/addresses/:addressId` | Bearer | Remove a saved address |
+| GET | `/users/me/wishlist` | Bearer | List saved medicines (populated with category/pharmacy) |
+| POST | `/users/me/wishlist/:medicineId` | Bearer | Add a medicine to the wishlist (idempotent) |
+| DELETE | `/users/me/wishlist/:medicineId` | Bearer | Remove a medicine from the wishlist |
 | GET | `/users` | admin | List users (filter by `role`, paginated) |
 | GET | `/users/:id` | admin | Get a user by id |
 | PATCH | `/users/:id` | admin | Change a user's `role`/`isActive` |

@@ -33,6 +33,10 @@ const addressIdParamValidator = [
   param('addressId').isMongoId().withMessage('Invalid address id'),
 ];
 
+const medicineIdParamValidator = [
+  param('medicineId').isMongoId().withMessage('Invalid medicine id'),
+];
+
 const idParamValidator = [param('id').isMongoId().withMessage('Invalid user id')];
 
 const listUsersValidator = [
@@ -52,6 +56,7 @@ module.exports = {
   addressValidator,
   updateAddressValidator,
   addressIdParamValidator,
+  medicineIdParamValidator,
   idParamValidator,
   listUsersValidator,
   adminUpdateValidator,

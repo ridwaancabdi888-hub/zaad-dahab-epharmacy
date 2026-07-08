@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../../src/app');
-const { registerUser } = require('../helpers/factory');
+const { registerUser, buildCatalogFixture } = require('../helpers/factory');
 
 describe('User profile API', () => {
   it('updates the current user profile', async () => {
@@ -44,6 +44,52 @@ describe('User profile API', () => {
 
     expect(removeRes.status).toBe(200);
     expect(removeRes.body.data.addresses).toHaveLength(1);
+  });
+});
+
+describe('Wishlist API', () => {
+  it('starts empty and requires authentication', async () => {
+    const res = await request(app).get('/api/v1/users/me/wishlist');
+    expect(res.status).toBe(401);
+  });
+
+  it('adds, lists, and removes a medicine from the wishlist idempotently', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken);
+
+    const emptyRes = await request(app)
+      .get('/api/v1/users/me/wishlist')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(emptyRes.status).toBe(200);
+    expect(emptyRes.body.data).toHaveLength(0);
+
+    const addRes = await request(app)
+      .post(`/api/v1/users/me/wishlist/${medicine._id}`)
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(addRes.status).toBe(201);
+    expect(addRes.body.data).toHaveLength(1);
+    expect(addRes.body.data[0]._id).toBe(medicine._id);
+
+    // Adding the same medicine again is idempotent, not duplicated.
+    const addAgainRes = await request(app)
+      .post(`/api/v1/users/me/wishlist/${medicine._id}`)
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(addAgainRes.body.data).toHaveLength(1);
+
+    const removeRes = await request(app)
+      .delete(`/api/v1/users/me/wishlist/${medicine._id}`)
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(removeRes.status).toBe(200);
+    expect(removeRes.body.data).toHaveLength(0);
+  });
+
+  it('rejects adding a medicine that does not exist', async () => {
+    const customer = await registerUser();
+    const res = await request(app)
+      .post('/api/v1/users/me/wishlist/64b7f3f1f1f1f1f1f1f1f1f1')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(res.status).toBe(404);
   });
 });
 

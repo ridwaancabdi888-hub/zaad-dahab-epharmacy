@@ -26,6 +26,21 @@ const removeAddress = catchAsync(async (req, res) => {
   return new ApiResponse(200, user, 'Address removed successfully').send(res);
 });
 
+const getWishlist = catchAsync(async (req, res) => {
+  const wishlist = await userService.getWishlist(req.user._id);
+  return new ApiResponse(200, wishlist, 'Wishlist retrieved').send(res);
+});
+
+const addToWishlist = catchAsync(async (req, res) => {
+  const wishlist = await userService.addToWishlist(req.user._id, req.params.medicineId);
+  return new ApiResponse(201, wishlist, 'Added to wishlist').send(res);
+});
+
+const removeFromWishlist = catchAsync(async (req, res) => {
+  const wishlist = await userService.removeFromWishlist(req.user._id, req.params.medicineId);
+  return new ApiResponse(200, wishlist, 'Removed from wishlist').send(res);
+});
+
 const list = catchAsync(async (req, res) => {
   const { items, meta } = await userService.list(req.query);
   return new ApiResponse(200, { items, meta }, 'Users retrieved').send(res);
@@ -47,6 +62,9 @@ module.exports = {
   addAddress,
   updateAddress,
   removeAddress,
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
   list,
   getById,
   adminUpdate,

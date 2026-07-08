@@ -8,16 +8,21 @@ Flutter client for the Zaad/e-Dahab E-Pharmacy platform. Material 3, Clean Archi
 - **Onboarding** — 3-slide carousel, skippable, marks itself seen via `SharedPreferences` so it only shows once per install
 - **Login / Register / Forgot Password / Reset Password** — wired to the real backend `/auth` endpoints; Google/OTP sign-in buttons are present per the design but intentionally show "coming soon" (no backend support exists for them yet, so they don't fake success)
 - **Bottom navigation shell** — Home, Categories, Cart, Profile, each with its own navigation stack (`StatefulShellRoute.indexedStack`)
-- **Home** — categories strip + "Recommended for You" products, both backed by real `/categories` and `/medicines` calls
-- **Categories** — full category grid (matching the reference design), drills into a real per-category medicine grid
+- **Home** — categories strip + "Recommended for You" products, both backed by real `/categories` and `/medicines` calls, plus entry points into Search and Wishlist
+- **Search** — debounced search-as-you-type against `/medicines?search=`, sharing the same paginated grid as category browsing
+- **Categories** — full category grid (matching the reference design), drills into a real, paginated per-category medicine grid
+- **Medicine Detail** — full product view (description, price/discount, stock/prescription status, pharmacy) with a quantity selector, add-to-cart, and a wishlist toggle
+- **Wishlist** — save/unsave any medicine from its card or detail page (heart toggle); a dedicated screen lists everything saved, backed by real `/users/me/wishlist` endpoints
 - **Cart** — live add/update/remove/clear against the real `/cart` endpoints, with stock-aware error feedback
 - **Profile** — account info, role, saved-address count, logout
 - **Theme** — colors/typography/spacing/radii/shadows all sourced from `../DESIGN.md`'s design tokens, wired into a single Material 3 `ThemeData`
 - **Routing** — `go_router` with an auth-aware redirect guard (unauthenticated users can't reach the app shell; authenticated users can't land back on splash/onboarding/auth screens)
-- **Reusable widgets** — `GradientButton`, `AppTextField`, `AppPasswordField`, `StatusChip`, `SectionHeader`, `EmptyState`, `ResponsiveCenter`, `MedicineCard`
+- **Reusable widgets** — `GradientButton`, `AppTextField`, `AppPasswordField`, `StatusChip`, `SectionHeader`, `EmptyState`, `ErrorView`, `LoadingIndicator`, `ResponsiveCenter`, `MedicineCard`, `WishlistHeartButton`
 - **Responsive UI** — a `context.gridColumns`/`isCompact` helper reflows grids from 2→4→6 columns and caps content width on tablet/desktop, per the design system's grid guidance
+- **Pagination** — a generic `PaginatedMedicinesController` (load-more/infinite-scroll, one instance per category/search filter) backs both category browsing and search, appending pages as the user scrolls and preserving already-loaded items if a later page fails
+- **Loading / error handling** — every async screen uses the same `LoadingIndicator`/`ErrorView` pair, with `ErrorView` surfacing a Retry action instead of leaving a dead end
 
-Checkout, order tracking, product detail pages, and payment are **not** built yet — the Cart screen's "Proceed to Checkout" honestly reports that it's coming in a later phase rather than faking a checkout flow.
+Checkout, order tracking, and payment are **not** built yet — the Cart screen's "Proceed to Checkout" honestly reports that it's coming in a later phase rather than faking a checkout flow.
 
 ## Getting started
 
@@ -42,7 +47,7 @@ flutter create --platforms=windows,android,ios .
 
 - **Riverpod is pinned to 2.6.1**, not the newer 3.x line: Riverpod 3.0 moved `StateNotifierProvider`/`StateNotifier` to a `legacy.dart` import and removed `AsyncValue.valueOrNull`, both used throughout this app's controllers. 2.6.1 is still a fully supported, widely-used stable release.
 - **Windows and Android platform folders aren't checked in.** Building either requires local tooling this dev environment didn't have: Windows desktop needs the Visual Studio "Desktop development with C++" workload (missing here), and enabling native-plugin symlinks requires Windows Developer Mode (`start ms-settings:developers`), which needs an interactive session and admin/registry access this environment didn't have either. Regenerate them with `flutter create --platforms=windows,android .` on a machine that has what it needs, then `flutter pub get` again.
-- Verified in this environment: `flutter analyze` (0 issues), `flutter test` (20/20 passing), `flutter build web --release`, and `flutter run -d chrome --release` (boots cleanly, no runtime errors).
+- Verified in this environment: `flutter analyze` (0 issues), `flutter test` (27/27 passing), `flutter build web --release`, and `flutter run -d chrome --release` (boots cleanly, no runtime errors).
 
 ## Architecture
 
@@ -56,8 +61,9 @@ lib/
     utils/       Validators, responsive breakpoints, runCatchingApi
     widgets/     reusable UI components
   features/
-    splash/, onboarding/, auth/, shell/, home/, categories/, cart/, catalog/, profile/
-    each auth/cart feature follows data/ -> application/ -> presentation/
+    splash/, onboarding/, auth/, shell/, home/, categories/, search/, cart/,
+    catalog/, wishlist/, profile/
+    each feature follows data/ -> application/ -> presentation/
 test/
   flutter_test_config.dart   disables google_fonts runtime fetching + initializes the test binding
   *_test.dart                validators, models, theme, widgets, and a full app-boot smoke test

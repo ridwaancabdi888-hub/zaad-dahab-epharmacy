@@ -5,7 +5,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/utils/run_catching.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../../core/widgets/loading_indicator.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../application/cart_controller.dart';
 import '../data/cart_model.dart';
@@ -53,8 +55,11 @@ class CartScreen extends ConsumerWidget {
                         _OrderSummaryCard(cart: cart),
                       ],
                     ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text('$error')),
+              loading: () => const LoadingIndicator(),
+              error: (error, _) => ErrorView(
+                error: error,
+                onRetry: () => ref.read(cartControllerProvider.notifier).refresh(),
+              ),
             ),
           ),
         ),

@@ -6,11 +6,15 @@ import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/error_view.dart';
+import '../../../core/widgets/loading_indicator.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/presentation/medicine_card.dart';
+import '../../search/presentation/search_screen.dart';
+import '../../wishlist/presentation/wishlist_screen.dart';
 import 'category_icon_button.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -27,6 +31,13 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Zaad/e-Dahab'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.favorite_border),
+            tooltip: 'Wishlist',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WishlistScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_none),
             onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
@@ -55,7 +66,11 @@ class HomeScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                _SearchBar(onTap: () => context.go(RoutePaths.categories)),
+                _SearchBar(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SearchScreen()),
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 SectionHeader(
                   title: 'Categories',
@@ -67,7 +82,7 @@ class HomeScreen extends ConsumerWidget {
                   height: 96,
                   child: categoriesAsync.when(
                     data: (categories) => categories.isEmpty
-                        ? const Center(child: Text('No categories yet'))
+                        ? const EmptyState(icon: Icons.category_outlined, title: 'No categories yet')
                         : ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: categories.length,
@@ -77,8 +92,9 @@ class HomeScreen extends ConsumerWidget {
                               onTap: () => context.go(RoutePaths.categories),
                             ),
                           ),
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (error, _) => Center(child: Text('$error')),
+                    loading: () => const LoadingIndicator(),
+                    error: (error, _) =>
+                        ErrorView(error: error, onRetry: () => ref.invalidate(categoriesProvider)),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -102,8 +118,11 @@ class HomeScreen extends ConsumerWidget {
                               child: MedicineCard(medicine: medicines[index]),
                             ),
                           ),
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (error, _) => Center(child: Text('$error')),
+                    loading: () => const LoadingIndicator(),
+                    error: (error, _) => ErrorView(
+                      error: error,
+                      onRetry: () => ref.invalidate(recommendedMedicinesProvider),
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),

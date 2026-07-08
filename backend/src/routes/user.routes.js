@@ -7,6 +7,7 @@ const {
   addressValidator,
   updateAddressValidator,
   addressIdParamValidator,
+  medicineIdParamValidator,
   idParamValidator,
   listUsersValidator,
   adminUpdateValidator,
@@ -30,6 +31,20 @@ router.delete(
   addressIdParamValidator,
   validate,
   userController.removeAddress,
+);
+
+router.get('/me/wishlist', userController.getWishlist);
+router.post(
+  '/me/wishlist/:medicineId',
+  medicineIdParamValidator,
+  validate,
+  userController.addToWishlist,
+);
+router.delete(
+  '/me/wishlist/:medicineId',
+  medicineIdParamValidator,
+  validate,
+  userController.removeFromWishlist,
 );
 
 router.get('/', authorize('admin'), listUsersValidator, validate, userController.list);

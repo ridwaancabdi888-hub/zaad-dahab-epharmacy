@@ -20,12 +20,10 @@ final recommendedMedicinesProvider = FutureProvider.autoDispose<List<MedicineMod
   return page.items;
 });
 
-/// Medicines for the Categories tab's search/browse grid, refetched
-/// whenever the selected category or search query changes.
-final medicinesByFilterProvider = FutureProvider.autoDispose
-    .family<MedicinePage, ({String? categoryId, String? search})>((ref, filter) {
-  return ref.watch(catalogRepositoryProvider).fetchMedicines(
-        categoryId: filter.categoryId,
-        search: filter.search,
-      );
+/// A single medicine by id, for the Medicine Detail screen.
+final medicineByIdProvider = FutureProvider.autoDispose.family<MedicineModel, String>((
+  ref,
+  id,
+) async {
+  return ref.watch(catalogRepositoryProvider).fetchMedicineById(id);
 });
