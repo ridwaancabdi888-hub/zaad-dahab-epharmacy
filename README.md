@@ -26,10 +26,9 @@ DESIGN.md      Visual design system reference used by the mobile app
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| 1 | Backend foundation: project skeleton, JWT auth (register/login/refresh/logout), tests | ✅ Complete |
-| 2 | Backend domain: products, categories, orders, prescriptions | Not started |
-| 3 | Flutter mobile app | Not started |
-| 4 | React admin panel | Not started |
-| 5 | Payments (Zaad/e-Dahab), Firebase notifications, Google Maps tracking | Not started |
+| 1 | Backend: project skeleton, JWT auth, and the full domain — Users, Pharmacies, Medicines, Categories, Cart, Orders, Payments (sandbox gateway), Deliveries | ✅ Complete |
+| 2 | Flutter mobile app | Not started |
+| 3 | React admin panel | Not started |
+| 4 | Real Zaad/e-Dahab merchant integration, Firebase notifications, Google Maps live tracking, image upload | Not started |
 
-See [backend/README.md](backend/README.md) for how to run and test the API delivered in Phase 1.
+See [backend/README.md](backend/README.md) for the full API reference and how to run/test the backend.

@@ -1,7 +1,19 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const ROLES = ['customer', 'pharmacist', 'admin'];
+const ROLES = ['customer', 'pharmacist', 'rider', 'admin'];
+
+const addressSchema = new mongoose.Schema(
+  {
+    label: { type: String, trim: true, default: 'Home' },
+    street: { type: String, required: true, trim: true },
+    city: { type: String, required: true, trim: true },
+    lat: { type: Number },
+    lng: { type: Number },
+    isDefault: { type: Boolean, default: false },
+  },
+  { _id: true },
+);
 
 const userSchema = new mongoose.Schema(
   {
@@ -35,6 +47,15 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ROLES,
       default: 'customer',
+    },
+    pharmacy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Pharmacy',
+      default: null,
+    },
+    addresses: {
+      type: [addressSchema],
+      default: [],
     },
     isActive: {
       type: Boolean,

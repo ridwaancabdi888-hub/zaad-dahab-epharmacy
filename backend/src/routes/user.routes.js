@@ -1,9 +1,45 @@
 const { Router } = require('express');
 const userController = require('../controllers/user.controller');
-const { authenticate } = require('../middleware/auth.middleware');
+const validate = require('../middleware/validate.middleware');
+const { authenticate, authorize } = require('../middleware/auth.middleware');
+const {
+  updateProfileValidator,
+  addressValidator,
+  updateAddressValidator,
+  addressIdParamValidator,
+  idParamValidator,
+  listUsersValidator,
+  adminUpdateValidator,
+} = require('../validators/user.validator');
 
 const router = Router();
 
-router.get('/me', authenticate, userController.getMe);
+router.use(authenticate);
+
+router.get('/me', userController.getMe);
+router.patch('/me', updateProfileValidator, validate, userController.updateMe);
+router.post('/me/addresses', addressValidator, validate, userController.addAddress);
+router.patch(
+  '/me/addresses/:addressId',
+  updateAddressValidator,
+  validate,
+  userController.updateAddress,
+);
+router.delete(
+  '/me/addresses/:addressId',
+  addressIdParamValidator,
+  validate,
+  userController.removeAddress,
+);
+
+router.get('/', authorize('admin'), listUsersValidator, validate, userController.list);
+router.get('/:id', authorize('admin'), idParamValidator, validate, userController.getById);
+router.patch(
+  '/:id',
+  authorize('admin'),
+  adminUpdateValidator,
+  validate,
+  userController.adminUpdate,
+);
 
 module.exports = router;

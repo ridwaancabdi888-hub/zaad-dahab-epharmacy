@@ -28,6 +28,27 @@ const authenticate = catchAsync(async (req, _res, next) => {
   next();
 });
 
+const optionalAuthenticate = catchAsync(async (req, _res, next) => {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return next();
+  }
+
+  const token = header.slice('Bearer '.length);
+
+  try {
+    const payload = jwt.verify(token, env.jwt.accessSecret);
+    const user = await User.findById(payload.sub);
+    if (user && user.isActive) {
+      req.user = user;
+    }
+  } catch {
+    // Invalid/expired token on a public route: proceed anonymously.
+  }
+
+  return next();
+});
+
 function authorize(...roles) {
   return (req, _res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
@@ -37,4 +58,4 @@ function authorize(...roles) {
   };
 }
 
-module.exports = { authenticate, authorize };
+module.exports = { authenticate, optionalAuthenticate, authorize };

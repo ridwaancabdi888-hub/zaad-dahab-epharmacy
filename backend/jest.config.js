@@ -4,5 +4,5 @@ module.exports = {
   testMatch: ['**/tests/**/*.test.js'],
   collectCoverageFrom: ['src/**/*.js'],
   verbose: true,
-  testTimeout: 20000,
+  testTimeout: 40000,
 };

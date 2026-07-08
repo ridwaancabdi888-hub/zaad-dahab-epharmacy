@@ -1,0 +1,82 @@
+const request = require('supertest');
+const app = require('../../src/app');
+const { registerUser } = require('../helpers/factory');
+
+describe('User profile API', () => {
+  it('updates the current user profile', async () => {
+    const customer = await registerUser();
+
+    const res = await request(app)
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ name: 'Updated Name' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.name).toBe('Updated Name');
+  });
+
+  it('adds, updates, and removes addresses, keeping exactly one default', async () => {
+    const customer = await registerUser();
+
+    const addRes = await request(app)
+      .post('/api/v1/users/me/addresses')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ label: 'Home', street: '1 First St', city: 'Mogadishu' });
+
+    expect(addRes.status).toBe(201);
+    expect(addRes.body.data.addresses).toHaveLength(1);
+    expect(addRes.body.data.addresses[0].isDefault).toBe(true);
+
+    const secondAddRes = await request(app)
+      .post('/api/v1/users/me/addresses')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ label: 'Work', street: '2 Second St', city: 'Mogadishu', isDefault: true });
+
+    expect(secondAddRes.body.data.addresses).toHaveLength(2);
+    const defaults = secondAddRes.body.data.addresses.filter((a) => a.isDefault);
+    expect(defaults).toHaveLength(1);
+    expect(defaults[0].label).toBe('Work');
+
+    const addressId = secondAddRes.body.data.addresses[0]._id;
+    const removeRes = await request(app)
+      .delete(`/api/v1/users/me/addresses/${addressId}`)
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+
+    expect(removeRes.status).toBe(200);
+    expect(removeRes.body.data.addresses).toHaveLength(1);
+  });
+});
+
+describe('Admin user management', () => {
+  it('forbids non-admins from listing or managing users', async () => {
+    const customer = await registerUser();
+
+    const listRes = await request(app)
+      .get('/api/v1/users')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(listRes.status).toBe(403);
+  });
+
+  it('lets an admin list, view, and deactivate a user', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+
+    const listRes = await request(app)
+      .get('/api/v1/users?role=customer')
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.data.items.some((u) => u._id === customer.user._id)).toBe(true);
+
+    const deactivateRes = await request(app)
+      .patch(`/api/v1/users/${customer.user._id}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ isActive: false });
+    expect(deactivateRes.status).toBe(200);
+    expect(deactivateRes.body.data.isActive).toBe(false);
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: customer.email, password: customer.password });
+    expect(loginRes.status).toBe(401);
+  });
+});
