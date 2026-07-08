@@ -1,0 +1,19 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+
+# Node (backend, future admin-panel)
+node_modules/
+npm-debug.log*
+coverage/
+.env
+.env.*
+!.env.example
+
+# Flutter (future mobile app)
+**/build/
+.dart_tool/
+.flutter-plugin-dependencies
