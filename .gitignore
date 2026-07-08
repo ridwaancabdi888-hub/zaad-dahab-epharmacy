@@ -13,7 +13,10 @@ coverage/
 .env.*
 !.env.example
 
-# Flutter (future mobile app)
+# Flutter
 **/build/
 .dart_tool/
 .flutter-plugin-dependencies
+*.iml
+.pub-cache/
+.pub/

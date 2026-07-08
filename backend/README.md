@@ -56,6 +56,8 @@ Base path: `API_PREFIX` (default `/api/v1`)
 | POST | `/auth/login` | none | Authenticate, returns access + refresh tokens |
 | POST | `/auth/refresh-token` | none (refresh token in body) | Rotates the refresh token, returns a new pair |
 | POST | `/auth/logout` | none (refresh token in body) | Revokes the given refresh token |
+| POST | `/auth/forgot-password` | none | Always returns a generic success message; in non-production the response also includes `resetToken` (no email provider is wired up yet — sandboxed the same way payments are) |
+| POST | `/auth/reset-password` | none (reset token in body) | Sets a new password, revokes all of that user's refresh tokens |
 
 ### Users
 | Method | Path | Auth | Description |

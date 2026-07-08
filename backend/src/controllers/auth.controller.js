@@ -43,4 +43,21 @@ const logout = catchAsync(async (req, res) => {
   return new ApiResponse(200, null, 'Logged out successfully').send(res);
 });
 
-module.exports = { register, login, refresh, logout };
+const forgotPassword = catchAsync(async (req, res) => {
+  const { rawToken } = await authService.forgotPassword(req.body.email);
+
+  return new ApiResponse(
+    200,
+    { resetToken: rawToken },
+    'If an account exists for this email, a password reset link has been sent',
+  ).send(res);
+});
+
+const resetPassword = catchAsync(async (req, res) => {
+  const { token, password } = req.body;
+  await authService.resetPassword(token, password);
+
+  return new ApiResponse(200, null, 'Password reset successfully').send(res);
+});
+
+module.exports = { register, login, refresh, logout, forgotPassword, resetPassword };
