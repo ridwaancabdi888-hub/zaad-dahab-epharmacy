@@ -15,7 +15,7 @@ React 19 + Vite admin dashboard for the Zaad/e-Dahab E-Pharmacy platform, wired 
 - **Charts** — [recharts](https://recharts.org): area/line/bar/pie, all fed by real aggregation data, never sample data
 - **Export PDF** — [jspdf](https://github.com/parallax/jsPDF) + jspdf-autotable, generates a multi-section PDF from the live report data
 - **Export Excel** — [SheetJS (xlsx)](https://sheetjs.com/), generates a multi-sheet `.xlsx` workbook from the live report data
-- **Role Management** — change any user's role (customer/pharmacist/rider/admin) via `PATCH /users/:id`, with a confirmation step and a guard against demoting/changing your own account from the table
+- **Role Management** — create a new user with any role directly (`POST /users`, name/email/phone/password/role — the only way to provision a pharmacist/rider/admin account without the "register then promote" two-step), and change any existing user's role via `PATCH /users/:id`, with a confirmation step and a guard against changing your own account's role from the table
 - **Audit Logs** — every mutating admin action (medicine/category/coupon create-update-delete, user role changes, order status/cancel, payment confirm) is recorded server-side and browsable here, filterable by resource type, action, and date range
 
 ## Backend additions this phase

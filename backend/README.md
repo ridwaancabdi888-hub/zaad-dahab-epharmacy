@@ -74,6 +74,7 @@ Base path: `API_PREFIX` (default `/api/v1`)
 | POST | `/users/me/wishlist/:medicineId` | Bearer | Add a medicine to the wishlist (idempotent) |
 | DELETE | `/users/me/wishlist/:medicineId` | Bearer | Remove a medicine from the wishlist |
 | GET | `/users` | admin | List users (filter by `role`, paginated) |
+| POST | `/users` | admin | Create a user directly with any `role` (`name`, `email`, `password`, optional `phone`/`role`) — the only way to provision a non-customer account without the "register then promote" two-step, since public `/auth/register` always defaults to `customer` |
 | GET | `/users/:id` | admin | Get a user by id |
 | PATCH | `/users/:id` | admin | Change a user's `role`/`isActive` |
 

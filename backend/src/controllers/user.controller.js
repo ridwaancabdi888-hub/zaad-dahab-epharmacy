@@ -56,6 +56,11 @@ const adminUpdate = catchAsync(async (req, res) => {
   return new ApiResponse(200, user, 'User updated successfully').send(res);
 });
 
+const adminCreate = catchAsync(async (req, res) => {
+  const user = await userService.adminCreate(req.body);
+  return new ApiResponse(201, user, 'User created successfully').send(res);
+});
+
 module.exports = {
   getMe,
   updateMe,
@@ -68,4 +73,5 @@ module.exports = {
   list,
   getById,
   adminUpdate,
+  adminCreate,
 };

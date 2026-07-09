@@ -105,6 +105,22 @@ async function getById(id) {
   return user;
 }
 
+/**
+ * Admin-only user creation — the only way to create a non-customer
+ * account directly (public `/auth/register` always defaults to
+ * `customer`), so an admin can provision a pharmacist/rider/admin
+ * account without the "register then promote" two-step.
+ */
+async function adminCreate({ name, email, phone, password, role }) {
+  const existing = await User.findOne({ email: email.toLowerCase() });
+  if (existing) {
+    throw ApiError.conflict('An account with this email already exists');
+  }
+
+  const passwordHash = await User.hashPassword(password);
+  return User.create({ name, email, phone, passwordHash, role: role || 'customer' });
+}
+
 async function adminUpdate(id, payload) {
   const user = await getById(id);
   if (payload.role !== undefined) user.role = payload.role;
@@ -124,4 +140,5 @@ module.exports = {
   list,
   getById,
   adminUpdate,
+  adminCreate,
 };

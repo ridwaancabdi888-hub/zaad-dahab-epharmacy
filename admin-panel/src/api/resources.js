@@ -34,6 +34,7 @@ export const ordersApi = {
 export const usersApi = {
   list: ({ page, limit, role }) => apiClient.get('/users', { page, limit, role }),
   getById: (id) => apiClient.get(`/users/${id}`),
+  create: (payload) => apiClient.post('/users', payload),
   adminUpdate: (id, payload) => apiClient.patch(`/users/${id}`, payload),
 };
 

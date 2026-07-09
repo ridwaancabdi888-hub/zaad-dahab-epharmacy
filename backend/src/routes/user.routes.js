@@ -12,6 +12,7 @@ const {
   idParamValidator,
   listUsersValidator,
   adminUpdateValidator,
+  adminCreateValidator,
 } = require('../validators/user.validator');
 
 const router = Router();
@@ -49,6 +50,14 @@ router.delete(
 );
 
 router.get('/', authorize('admin'), listUsersValidator, validate, userController.list);
+router.post(
+  '/',
+  authorize('admin'),
+  adminCreateValidator,
+  validate,
+  auditLog('user.create', 'User'),
+  userController.adminCreate,
+);
 router.get('/:id', authorize('admin'), idParamValidator, validate, userController.getById);
 router.patch(
   '/:id',

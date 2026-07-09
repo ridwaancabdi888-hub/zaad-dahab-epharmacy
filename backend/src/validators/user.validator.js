@@ -51,6 +51,24 @@ const adminUpdateValidator = [
   body('isActive').optional().isBoolean().toBoolean(),
 ];
 
+const adminCreateValidator = [
+  body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
+  body('email').trim().isEmail().withMessage('A valid email is required').normalizeEmail(),
+  body('phone')
+    .optional({ values: 'falsy' })
+    .trim()
+    .matches(/^\+?[0-9]{7,15}$/)
+    .withMessage('Phone number must be 7-15 digits, optionally starting with +'),
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters')
+    .matches(/[A-Za-z]/)
+    .withMessage('Password must contain at least one letter')
+    .matches(/[0-9]/)
+    .withMessage('Password must contain at least one number'),
+  body('role').optional().isIn(ROLES).withMessage(`role must be one of: ${ROLES.join(', ')}`),
+];
+
 module.exports = {
   updateProfileValidator,
   addressValidator,
@@ -60,4 +78,5 @@ module.exports = {
   idParamValidator,
   listUsersValidator,
   adminUpdateValidator,
+  adminCreateValidator,
 };

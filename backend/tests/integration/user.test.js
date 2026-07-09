@@ -125,4 +125,56 @@ describe('Admin user management', () => {
       .send({ email: customer.email, password: customer.password });
     expect(loginRes.status).toBe(401);
   });
+
+  it('forbids non-admins from creating a user', async () => {
+    const customer = await registerUser();
+    const res = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ name: 'New Rider', email: 'newrider@example.com', password: 'Str0ngPass', role: 'rider' });
+    expect(res.status).toBe(403);
+  });
+
+  it('lets an admin create a user with any role, and log in as them', async () => {
+    const admin = await registerUser({ role: 'admin' });
+
+    const createRes = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({
+        name: 'New Rider',
+        email: 'newrider@example.com',
+        phone: '+252611555000',
+        password: 'Str0ngPass1',
+        role: 'rider',
+      });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.data.role).toBe('rider');
+    expect(createRes.body.data.email).toBe('newrider@example.com');
+    expect(createRes.body.data.passwordHash).toBeUndefined();
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'newrider@example.com', password: 'Str0ngPass1' });
+    expect(loginRes.status).toBe(200);
+    expect(loginRes.body.data.user.role).toBe('rider');
+  });
+
+  it('defaults to the customer role when none is given, and rejects a duplicate email', async () => {
+    const admin = await registerUser({ role: 'admin' });
+
+    const createRes = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ name: 'No Role Given', email: 'norole@example.com', password: 'Str0ngPass1' });
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.data.role).toBe('customer');
+
+    const dupeRes = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ name: 'Duplicate', email: 'norole@example.com', password: 'Str0ngPass1' });
+    expect(dupeRes.status).toBe(409);
+  });
 });
