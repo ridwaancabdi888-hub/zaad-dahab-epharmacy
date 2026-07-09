@@ -111,7 +111,11 @@ class HomeScreen extends ConsumerWidget {
                   height: 96,
                   child: categoriesAsync.when(
                     data: (categories) => categories.isEmpty
-                        ? const EmptyState(icon: Icons.category_outlined, title: 'No categories yet')
+                        ? const EmptyState(
+                            icon: Icons.category_outlined,
+                            title: 'No categories yet',
+                            compact: true,
+                          )
                         : ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: categories.length,
@@ -122,8 +126,11 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           ),
                     loading: () => const LoadingIndicator(),
-                    error: (error, _) =>
-                        ErrorView(error: error, onRetry: () => ref.invalidate(categoriesProvider)),
+                    error: (error, _) => ErrorView(
+                      error: error,
+                      onRetry: () => ref.invalidate(categoriesProvider),
+                      compact: true,
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),

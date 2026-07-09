@@ -84,6 +84,13 @@ const medicineSchema = new mongoose.Schema(
 
 medicineSchema.index({ name: 'text', description: 'text', tags: 'text' });
 
+// Every catalog list query filters `isActive: true` first (see
+// `medicine.service.js#list`), then usually narrows by category or
+// pharmacy — a leading `isActive` keeps both compound indexes useful for
+// the common "active medicines in category/pharmacy X" queries.
+medicineSchema.index({ isActive: 1, category: 1 });
+medicineSchema.index({ isActive: 1, pharmacy: 1 });
+
 medicineSchema.virtual('inStock').get(function inStock() {
   return this.stock > 0;
 });

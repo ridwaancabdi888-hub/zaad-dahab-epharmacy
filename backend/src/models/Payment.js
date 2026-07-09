@@ -79,6 +79,14 @@ const paymentSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// `providerReference` is looked up on every webhook callback
+// (`payment.service.js#handleWebhook`); the other two cover "my
+// transaction history" and admin's status-filtered list, both sorted
+// newest first.
+paymentSchema.index({ providerReference: 1 });
+paymentSchema.index({ user: 1, createdAt: -1 });
+paymentSchema.index({ status: 1, createdAt: -1 });
+
 const Payment = mongoose.model('Payment', paymentSchema);
 
 module.exports = Payment;

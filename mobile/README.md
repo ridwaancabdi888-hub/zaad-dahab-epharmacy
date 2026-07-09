@@ -64,7 +64,8 @@ flutter create --platforms=windows,android,ios .
 
 - **Riverpod is pinned to 2.6.1**, not the newer 3.x line: Riverpod 3.0 moved `StateNotifierProvider`/`StateNotifier` to a `legacy.dart` import and removed `AsyncValue.valueOrNull`, both used throughout this app's controllers. 2.6.1 is still a fully supported, widely-used stable release.
 - **Windows and Android platform folders aren't checked in.** Building either requires local tooling this dev environment didn't have: Windows desktop needs the Visual Studio "Desktop development with C++" workload (missing here), and enabling native-plugin symlinks requires Windows Developer Mode (`start ms-settings:developers`), which needs an interactive session and admin/registry access this environment didn't have either. Regenerate them with `flutter create --platforms=windows,android .` on a machine that has what it needs, then `flutter pub get` again.
-- Verified in this environment: `flutter analyze` (0 issues), `flutter test` (34/34 passing), `flutter build web --release`, and `flutter run -d chrome --release` (boots cleanly, no runtime errors).
+- Verified in this environment: `flutter analyze` (0 issues), `flutter test` (37/37 passing), `flutter build web --release`, and `flutter run -d chrome --release` (boots cleanly, no runtime errors).
+- `EmptyState`/`ErrorView` have a `compact` mode for fixed-height strips too short for the default layout (e.g. the Home screen's 96px category row, which overflowed before this was added) — see `empty_state_test.dart` for the regression test, which also documents the overflow with a test that intentionally reproduces it without `compact`.
 - `geolocator` and `google_maps_flutter` are both real dependencies (not stubs) — `geolocator` works out of the box via the browser's Geolocation API on web; `google_maps_flutter` compiles and runs but only renders real tiles once a `GOOGLE_MAPS_API_KEY` is supplied (see "Google Maps" above).
 
 ## Architecture

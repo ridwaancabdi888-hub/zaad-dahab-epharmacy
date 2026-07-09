@@ -1,6 +1,7 @@
 const Pharmacy = require('../models/Pharmacy');
 const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
+const escapeRegExp = require('../utils/escapeRegExp');
 
 async function create(payload, actingUser) {
   const ownerId = actingUser.role === 'admin' && payload.owner ? payload.owner : actingUser._id;
@@ -29,7 +30,7 @@ async function list({ includeAll = false, city } = {}) {
     filter.isActive = true;
   }
   if (city) {
-    filter['address.city'] = new RegExp(`^${city}$`, 'i');
+    filter['address.city'] = new RegExp(`^${escapeRegExp(city)}$`, 'i');
   }
   return Pharmacy.find(filter).sort({ ratingAverage: -1, name: 1 });
 }

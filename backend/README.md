@@ -17,7 +17,8 @@ REST API for the Zaad/e-Dahab E-Pharmacy platform. Node.js + Express + MongoDB (
 - **Notifications**: real, persisted in-app notifications (not push — no Firebase project is configured) created automatically on every delivery status change and order cancellation, with per-user history and read/unread state
 - **Reports**: `GET /reports/dashboard` — one admin-only aggregation endpoint (MongoDB aggregation pipelines) covering totals by role/catalog/orders, revenue, a 14-day revenue/order series, orders-by-status, payments-by-method, and top-selling medicines. Backs the admin panel's Dashboard and Reports screens
 - **Audit Logs**: every mutating admin action (medicine/category/coupon create/update/delete, user role/activation changes, order status update/cancel, payment manual confirm) is recorded — actor, action, resource, method/path/status — via a generic `auditLog()` middleware and browsable through `GET /audit-logs` (paginated, filterable by action/resourceType/actor/date range)
-- Centralized error handling, request validation, rate limiting on auth routes, security headers (helmet), CORS, body sanitization against NoSQL operator injection
+- Centralized error handling, request validation, rate limiting (strict on auth routes, a generous app-wide backstop everywhere else), security headers (helmet), CORS, body sanitization against NoSQL operator injection and regex/ReDoS injection, JWT algorithm pinning, and fail-fast production config validation — see "Security" below
+- Interactive API documentation (OpenAPI 3.0 / Swagger UI) at `/api-docs` — see "API documentation" below
 - Structured logging (winston/morgan)
 - Full integration + unit test suite (Jest + Supertest + mongodb-memory-server — a real in-memory MongoDB engine, not mocks)
 
@@ -40,6 +41,32 @@ npm run dev             # starts the API with nodemon, requires a running MongoD
 | `npm test` | Run the full Jest suite (spins up an in-memory MongoDB) |
 | `npm run test:coverage` | Run tests with coverage report |
 | `npm run lint` | Lint the codebase with ESLint |
+
+## API documentation
+
+A full OpenAPI 3.0 spec (`openapi.yaml`) covers every endpoint — request/response bodies, auth requirements, query params, and shared schemas. With the server running:
+
+- **Interactive docs (Swagger UI):** http://localhost:5000/api-docs
+- **Raw spec (JSON):** http://localhost:5000/api-docs.json
+
+It's generated from a single hand-maintained YAML file, not decorator comments scattered across routes, so it can't drift silently out of sync the way inline-comment-based generators do — but it also isn't auto-verified against the live routes, so treat it as documentation to keep updated alongside route changes, not a contract test.
+
+## Security
+
+- **Auth**: bcrypt (cost 12) password hashing; JWT access + rotating/revocable refresh tokens, both signed and verified with an explicit `algorithm: 'HS256'` (no algorithm-confusion surface, even though only symmetric secrets are used today)
+- **Rate limiting**: a strict limiter on `/auth/*` (20 req/15min by default) plus a generous app-wide backstop on every other route (300 req/15min by default) so no client — or bug in a client — can hammer expensive endpoints (search, report aggregation) into a denial of service
+- **Input sanitization**: `sanitizeBody` middleware strips `$`-prefixed and dotted keys from `req.body` (NoSQL operator injection); any string interpolated into a Mongo `$regex` (e.g. the pharmacy directory's `city` filter) is escaped first (`utils/escapeRegExp.js`) to prevent both ReDoS and regex-metacharacter injection
+- **Production fail-fast**: `config/env.js` refuses to start in `NODE_ENV=production` if JWT secrets are short (<32 chars) or identical to each other, a webhook secret is missing or still at its sandbox default, or `CORS_ORIGIN` is unset/`*` — see `config/validateProductionEnv.js` (unit-tested in isolation) rather than surfacing as a security incident later
+- **Webhook signatures**: HMAC-SHA256 over the raw request body, compared with `crypto.timingSafeEqual` (not `===`) to avoid a timing side-channel
+- **Headers/CORS**: `helmet()` (CSP disabled — this is a JSON API plus one self-hosted docs page, not an HTML app CSP needs to protect), explicit `CORS_ORIGIN`, `x-powered-by` disabled
+- **Least privilege**: every mutating route is gated by `authorize(...roles)`; ownership is re-checked in the service layer, not just the route (e.g. a pharmacist can only manage their own pharmacy's medicines; a rider can only update a delivery assigned to them)
+- **Dependencies**: `npm audit` is clean (0 vulnerabilities) as of this phase
+
+## Performance & database
+
+- **Indexes**: every list/filter query used by the mobile app and admin panel is backed by a matching index — see the `schema.index(...)` calls at the bottom of `Order`, `Payment`, `User`, `Delivery`, and `Medicine` in `src/models/`, each commented with which query it serves. `Medicine` also keeps its full-text index (`name`/`description`/`tags`) for catalog search.
+- **Pagination**: every list endpoint is paginated (`page`/`limit`, capped at 100) — nothing returns an unbounded collection except `GET /categories` and `GET /pharmacies` (both are small, admin-managed reference tables).
+- **Compression**: `compression()` gzips every response.
 
 ## Roles
 
@@ -204,24 +231,26 @@ An entry is written by a generic `auditLog(action, resourceType)` middleware wir
 - **Checkout** computes `subtotal` from live medicine prices, a flat delivery fee waived above a free-delivery threshold, and a flat tax rate — all server-side, never trusted from the client.
 - **Prescription gating**: if any cart item has `requiresPrescription: true`, checkout requires a non-empty `prescriptionImage` (a URL string for now; actual file upload lands with Cloud Storage in a later phase).
 - **`payerPhone` is required at checkout for `zaad`/`edahab`** (validated as 7-15 digits, optional leading `+`) — mobile money payments are pushed to that phone as a USSD prompt in real life, and it also drives the sandbox test scenarios above. Not required for `cod`.
-- **Stock** is decremented on checkout and restored on cancellation. There's no multi-document transaction around this yet (mongodb doesn't get a replica set in this phase), so concurrent checkouts of the last unit of stock is a known race left for a later hardening pass.
+- **Stock** is decremented on checkout (atomically and conditionally per item — `findOneAndUpdate` with a `stock: { $gte: quantity }` guard, rolling back any items already decremented in the same checkout if a later one fails) and restored on cancellation. No multi-document transaction is used (this environment's MongoDB isn't a replica set), but each single-document update is still atomic, which is what actually prevents two concurrent checkouts from overselling the last unit — see `order.service.js#decrementStockAtomically` and its regression test in `tests/integration/order.test.js`.
 - **Order vs. Delivery status are two separate state machines** by design: pharmacy staff own `pending/confirmed/preparing/cancelled` via the Order API, while logistics/riders own `assigned/picked_up/in_transit/delivered` via the Delivery API. The two are bridged automatically (Delivery reaching `delivered` marks the Order `delivered` and, for COD, marks the Payment `completed`).
 
 ## Architecture
 
 ```
 src/
-  config/      environment loading, MongoDB connection, logger
-  models/      Mongoose schemas (User, RefreshToken, Pharmacy, Category, Medicine, Cart, Order, Payment, Delivery, Coupon, Notification)
+  config/      environment loading + production fail-fast validation, MongoDB connection, logger
+  models/      Mongoose schemas (User, RefreshToken, Pharmacy, Category, Medicine, Cart, Order, Payment,
+               Delivery, Coupon, Notification, AuditLog), each with the indexes its queries need
   services/    business logic per resource, plus the pluggable payment gateway
   controllers/ thin HTTP handlers, delegate to services
   routes/      Express routers
-  middleware/  auth guard (+ optional-auth for public/admin-aware routes), validation, rate limiting, error handling
-  utils/       ApiError, ApiResponse, catchAsync, pagination, slugify, order number generator
-  app.js       Express app wiring (no network listener — used directly by tests)
+  middleware/  auth guard (+ optional-auth), validation, rate limiting (auth + general), audit logging, error handling
+  utils/       ApiError, ApiResponse, catchAsync, pagination, slugify, escapeRegExp, order number generator
+  app.js       Express app wiring (no network listener — used directly by tests); serves /api-docs
   server.js    boots the DB connection and HTTP listener
+openapi.yaml   OpenAPI 3.0 spec served at /api-docs (Swagger UI) and /api-docs.json
 tests/
   integration/ full HTTP request/response tests against a real in-memory MongoDB, one file per resource
-  unit/        service-level unit tests
+  unit/        service-level unit tests (geo math, production env validation)
   helpers/     shared test fixtures (register users by role, build a verified pharmacy+category+medicine)
 ```

@@ -43,6 +43,33 @@ describe('Order checkout', () => {
     expect(res.status).toBe(400);
   });
 
+  it('never oversells: two concurrent checkouts racing for the last unit only let one succeed', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customerA = await registerUser();
+    const customerB = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 1, price: 10 });
+
+    await addToCart(customerA.accessToken, medicine._id, 1);
+    await addToCart(customerB.accessToken, medicine._id, 1);
+
+    const checkout = (token) =>
+      request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ deliveryAddress: address, paymentMethod: 'cod' });
+
+    const [resA, resB] = await Promise.all([
+      checkout(customerA.accessToken),
+      checkout(customerB.accessToken),
+    ]);
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([201, 400]);
+
+    const medicineRes = await request(app).get(`/api/v1/medicines/${medicine._id}`);
+    expect(medicineRes.body.data.stock).toBe(0);
+  });
+
   it('rejects checkout of a prescription-required item without a prescription image', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();

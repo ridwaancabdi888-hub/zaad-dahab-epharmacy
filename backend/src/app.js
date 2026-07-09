@@ -1,22 +1,32 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
 const morgan = require('morgan');
+const YAML = require('yaml');
+const swaggerUi = require('swagger-ui-express');
 
 const env = require('./config/env');
 const logger = require('./config/logger');
 const routes = require('./routes');
 const sanitizeBody = require('./middleware/sanitizeBody.middleware');
+const { apiRateLimiter } = require('./middleware/rateLimiter.middleware');
 const notFound = require('./middleware/notFound.middleware');
 const errorHandler = require('./middleware/error.middleware');
 
 const app = express();
 
 app.disable('x-powered-by');
-app.use(helmet());
+// CSP is a browser-page protection; this is a JSON-only API with a single
+// HTML page (the Swagger UI docs below), whose inline styles/scripts CSP's
+// defaults would otherwise block. Helmet's other headers (X-Frame-Options,
+// X-Content-Type-Options, HSTS, ...) stay on.
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(compression());
+app.use(apiRateLimiter);
 app.use(
   express.json({
     limit: '10kb',
@@ -39,6 +49,10 @@ if (env.nodeEnv !== 'test') {
     }),
   );
 }
+
+const openapiDocument = YAML.parse(fs.readFileSync(path.join(__dirname, '..', 'openapi.yaml'), 'utf8'));
+app.get('/api-docs.json', (_req, res) => res.json(openapiDocument));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiDocument));
 
 app.use(env.apiPrefix, routes);
 

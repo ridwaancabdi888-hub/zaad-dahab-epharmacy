@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const { findProductionConfigProblems } = require('./validateProductionEnv');
 
 dotenv.config({ quiet: true });
 
@@ -8,12 +9,25 @@ const required = [
   'JWT_REFRESH_SECRET',
 ];
 
+const isTest = process.env.NODE_ENV === 'test';
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Tests provide their own in-memory Mongo URI and throwaway secrets via
-// tests/setup.js, so the hard failure below only applies outside of Jest.
-if (process.env.NODE_ENV !== 'test') {
+// tests/setup.js, so the hard failures below only apply outside of Jest.
+if (!isTest) {
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
+// Fail fast in production rather than silently running with a
+// misconfiguration that would otherwise only surface as a security
+// incident — see `validateProductionEnv.js` for what's checked.
+if (isProduction) {
+  const problems = findProductionConfigProblems(process.env);
+  if (problems.length > 0) {
+    throw new Error(`Refusing to start in production with insecure configuration:\n- ${problems.join('\n- ')}`);
   }
 }
 
@@ -32,6 +46,10 @@ const env = {
   authRateLimit: {
     windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
+  },
+  apiRateLimit: {
+    windowMs: Number(process.env.API_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+    max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
   },
   payments: {
     // Real merchant credentials for Zaad/e-Dahab are not available in this

@@ -110,6 +110,11 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Covers the two most common admin/customer list queries: "my orders,
+// newest first" and "orders in status X, newest first".
+orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ status: 1, createdAt: -1 });
+
 const Order = mongoose.model('Order', orderSchema);
 
 module.exports = Order;

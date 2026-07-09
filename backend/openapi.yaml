@@ -1,0 +1,1671 @@
+openapi: 3.0.3
+info:
+  title: Zaad/e-Dahab E-Pharmacy API
+  description: |
+    REST API for the Zaad/e-Dahab E-Pharmacy platform: auth, catalog
+    (categories/pharmacies/medicines), cart/checkout, orders, Zaad/e-Dahab
+    mobile-money payments (sandboxed), rider deliveries with live ETA,
+    in-app notifications, coupons, and an admin surface (users/reports/audit
+    logs).
+
+    All endpoints are mounted under the `API_PREFIX` (default `/api/v1`).
+    Every response uses the same envelope:
+    ```json
+    { "success": true, "message": "...", "data": { } }
+    ```
+    Paginated list endpoints nest `{ "items": [...], "meta": {...} }` inside
+    `data`. Errors use `success: false` with a `message`, and validation
+    errors add a `details` array of `{ field, message }`.
+  version: 1.0.0
+  license:
+    name: ISC
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Users
+  - name: Categories
+  - name: Pharmacies
+  - name: Medicines
+  - name: Cart
+  - name: Orders
+  - name: Payments
+  - name: Deliveries
+  - name: Coupons
+  - name: Notifications
+  - name: Reports
+  - name: Audit Logs
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health check
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status: { type: string, example: ok }
+                          uptime: { type: number }
+                          timestamp: { type: string, format: date-time }
+
+  # ---------------------------------------------------------------- Auth
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new customer account
+      description: Always creates a `customer`-role account. Use `POST /users` (admin) to create other roles directly.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                email: { type: string, format: email }
+                phone: { type: string, description: 'E.164-ish, 7-15 digits, optional leading +' }
+                password: { type: string, minLength: 8, description: 'Must contain a letter and a number' }
+      responses:
+        '201':
+          description: Account created and logged in
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/AuthResult' } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in with email + password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/AuthResult' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for a new access/refresh pair (rotates the refresh token)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties: { refreshToken: { type: string } }
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          accessToken: { type: string }
+                          refreshToken: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke a refresh token
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { refreshToken: { type: string } }
+      responses:
+        '200': { description: Logged out (idempotent, always succeeds) }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password reset
+      description: |
+        Always responds successfully whether or not the email exists, to
+        avoid account enumeration. No transactional email provider is
+        configured in this environment, so outside of production the raw
+        reset token is returned in the response for the client to drive
+        the reset flow end-to-end during development.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties: { email: { type: string, format: email } }
+      responses:
+        '200': { description: Reset requested (or silently ignored for an unknown email) }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset a password using a token from /auth/forgot-password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        '200': { description: Password reset; all active refresh tokens are revoked }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # --------------------------------------------------------------- Users
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get the current user's profile
+      responses:
+        '200': { $ref: '#/components/responses/UserResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Users]
+      summary: Update the current user's name/phone
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                phone: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/UserResult' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /users/me/addresses:
+    post:
+      tags: [Users]
+      summary: Add a saved delivery address
+      description: The first address ever added is automatically made the default.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [street, city]
+              properties:
+                label: { type: string, default: Home }
+                street: { type: string }
+                city: { type: string }
+                lat: { type: number }
+                lng: { type: number }
+                isDefault: { type: boolean }
+      responses:
+        '201': { $ref: '#/components/responses/UserResult' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /users/me/addresses/{addressId}:
+    patch:
+      tags: [Users]
+      summary: Update a saved address
+      parameters: [{ $ref: '#/components/parameters/AddressId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string }
+                street: { type: string }
+                city: { type: string }
+                lat: { type: number }
+                lng: { type: number }
+                isDefault: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/UserResult' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Users]
+      summary: Remove a saved address
+      parameters: [{ $ref: '#/components/parameters/AddressId' }]
+      responses:
+        '200': { $ref: '#/components/responses/UserResult' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /users/me/wishlist:
+    get:
+      tags: [Users]
+      summary: List saved medicines (populated with category/pharmacy)
+      responses:
+        '200':
+          description: Wishlist
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Medicine' } }
+
+  /users/me/wishlist/{medicineId}:
+    post:
+      tags: [Users]
+      summary: Add a medicine to the wishlist (idempotent)
+      parameters: [{ $ref: '#/components/parameters/MedicineIdPath' }]
+      responses:
+        '201': { description: Updated wishlist }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Users]
+      summary: Remove a medicine from the wishlist
+      parameters: [{ $ref: '#/components/parameters/MedicineIdPath' }]
+      responses:
+        '200': { description: Updated wishlist }
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users (admin)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - name: role
+          in: query
+          schema: { $ref: '#/components/schemas/Role' }
+      responses:
+        '200': { $ref: '#/components/responses/UserPage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      summary: Create a user with any role (admin)
+      description: |
+        The only way to provision a pharmacist/rider/admin account
+        directly — public `/auth/register` always defaults to `customer`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+                password: { type: string, minLength: 8 }
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '201': { $ref: '#/components/responses/UserResult' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get a user by id (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/UserResult' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Users]
+      summary: Change a user's role/isActive (admin, role management)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+                isActive: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/UserResult' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------------------------------------------------- Categories
+  /categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      security: []
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Category' } }
+    post:
+      tags: [Categories]
+      summary: Create a category (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201': { description: Created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /categories/{id}:
+    get:
+      tags: [Categories]
+      summary: Get a category by id
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Category }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Categories]
+      summary: Update a category (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '200': { description: Updated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Categories]
+      summary: Delete a category (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------------------------------------------------- Pharmacies
+  /pharmacies:
+    get:
+      tags: [Pharmacies]
+      summary: List pharmacies
+      description: Public callers only see verified + active pharmacies. Pass `all=true` as an authenticated admin to see everything.
+      security: []
+      parameters:
+        - name: all
+          in: query
+          schema: { type: boolean }
+        - name: city
+          in: query
+          schema: { type: string }
+          description: Case-insensitive exact city match.
+      responses:
+        '200':
+          description: Pharmacies
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Pharmacy' } }
+    post:
+      tags: [Pharmacies]
+      summary: Create a pharmacy (pharmacist or admin)
+      description: A pharmacist may only own one pharmacy; admins may create one on behalf of any owner via `owner`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PharmacyInput' }
+      responses:
+        '201': { description: Created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /pharmacies/{id}:
+    get:
+      tags: [Pharmacies]
+      summary: Get a pharmacy by id
+      security: []
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Pharmacy }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Pharmacies]
+      summary: Update a pharmacy (owner or admin)
+      description: A non-admin owner's `isVerified`/`isActive` changes are silently dropped.
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PharmacyInput' }
+      responses:
+        '200': { description: Updated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Pharmacies]
+      summary: Delete a pharmacy (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /pharmacies/{id}/verify:
+    patch:
+      tags: [Pharmacies]
+      summary: Verify or unverify a pharmacy (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isVerified]
+              properties: { isVerified: { type: boolean } }
+      responses:
+        '200': { description: Updated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ----------------------------------------------------------- Medicines
+  /medicines:
+    get:
+      tags: [Medicines]
+      summary: List medicines (catalog browse/search)
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: pharmacy, in: query, schema: { type: string } }
+        - { name: minPrice, in: query, schema: { type: number } }
+        - { name: maxPrice, in: query, schema: { type: number } }
+        - { name: requiresPrescription, in: query, schema: { type: boolean } }
+        - { name: search, in: query, schema: { type: string }, description: Full-text search over name/description/tags. }
+      responses:
+        '200':
+          description: Paginated medicines
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/MedicinePage' } }
+    post:
+      tags: [Medicines]
+      summary: Create a medicine (pharmacist or admin)
+      description: A pharmacist creates under their own pharmacy; an admin must specify `pharmacy`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MedicineInput' }
+      responses:
+        '201': { description: Created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /medicines/{id}:
+    get:
+      tags: [Medicines]
+      summary: Get a medicine by id
+      security: []
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Medicine }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Medicines]
+      summary: Update a medicine (owning pharmacist or admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MedicineInput' }
+      responses:
+        '200': { description: Updated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Medicines]
+      summary: Delete a medicine (owning pharmacist or admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------------------------------------------------------- Cart
+  /cart:
+    get:
+      tags: [Cart]
+      summary: Get the current user's cart
+      responses:
+        '200': { $ref: '#/components/responses/CartResult' }
+    delete:
+      tags: [Cart]
+      summary: Clear the cart
+      responses:
+        '200': { $ref: '#/components/responses/CartResult' }
+
+  /cart/items:
+    post:
+      tags: [Cart]
+      summary: Add an item to the cart (merges quantity if already present)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [medicineId]
+              properties:
+                medicineId: { type: string }
+                quantity: { type: integer, minimum: 1, default: 1 }
+      responses:
+        '200': { $ref: '#/components/responses/CartResult' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /cart/items/{medicineId}:
+    patch:
+      tags: [Cart]
+      summary: Set an item's quantity (0 removes it)
+      parameters: [{ $ref: '#/components/parameters/MedicineIdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties: { quantity: { type: integer, minimum: 0 } }
+      responses:
+        '200': { $ref: '#/components/responses/CartResult' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Cart]
+      summary: Remove an item from the cart
+      parameters: [{ $ref: '#/components/parameters/MedicineIdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/CartResult' }
+
+  # -------------------------------------------------------------- Orders
+  /orders/quote:
+    post:
+      tags: [Orders]
+      summary: Price the current cart (no side effects)
+      description: Validates stock/prescription requirements and applies an optional coupon, returning the same pricing breakdown checkout would produce.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { couponCode: { type: string } }
+      responses:
+        '200': { description: Quote }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Check out the current cart
+      description: |
+        Atomically decrements stock (rolling back on a partial failure —
+        see the service-level race-condition guard), creates the order,
+        initiates a payment via the selected gateway, and creates a
+        `pending` delivery record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckoutInput' }
+      responses:
+        '201':
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          order: { $ref: '#/components/schemas/Order' }
+                          payment: { $ref: '#/components/schemas/Payment' }
+                          delivery: { $ref: '#/components/schemas/Delivery' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    get:
+      tags: [Orders]
+      summary: List orders (customer sees only their own; pharmacist sees orders containing their items; admin sees all)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+      responses:
+        '200':
+          description: Paginated orders
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items: { type: array, items: { $ref: '#/components/schemas/Order' } }
+                          meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get an order by id
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Order }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders/{id}/status:
+    patch:
+      tags: [Orders]
+      summary: Manually advance an order's status (pharmacist/admin; customers cannot)
+      description: 'Valid manual transitions: pending→confirmed|cancelled, confirmed→preparing|cancelled, preparing→cancelled. `out_for_delivery`/`delivered` are set automatically by the delivery workflow.'
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties: { status: { $ref: '#/components/schemas/OrderStatus' } }
+      responses:
+        '200': { description: Updated }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /orders/{id}/cancel:
+    patch:
+      tags: [Orders]
+      summary: Cancel an order
+      description: Only `pending`/`confirmed`/`preparing` orders can be cancelled. Restocks medicines, refunds/cancels the payment, cancels any in-flight delivery, and sends a notification.
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Cancelled }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ------------------------------------------------------------ Payments
+  /payments/webhook/{provider}:
+    post:
+      tags: [Payments]
+      summary: Gateway webhook callback (HMAC-signed, not user-authenticated)
+      description: |
+        Simulates the asynchronous callback a real Zaad/e-Dahab merchant
+        integration would push. Authenticated via an `X-Webhook-Signature`
+        header — HMAC-SHA256 of the raw request body, using
+        `ZAAD_WEBHOOK_SECRET`/`EDAHAB_WEBHOOK_SECRET`, compared with a
+        timing-safe equality check.
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string, enum: [zaad, edahab] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [providerReference, status]
+              properties:
+                providerReference: { type: string }
+                status: { $ref: '#/components/schemas/PaymentStatus' }
+                failureReason: { type: string }
+      responses:
+        '200': { description: Processed }
+        '401': { description: Invalid or missing signature }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /payments:
+    get:
+      tags: [Payments]
+      summary: List every payment in the system (admin)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/PaymentStatus' } }
+        - { name: method, in: query, schema: { $ref: '#/components/schemas/PaymentMethod' } }
+      responses:
+        '200':
+          description: Paginated payments
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items: { type: array, items: { $ref: '#/components/schemas/Payment' } }
+                          meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /payments/me:
+    get:
+      tags: [Payments]
+      summary: The current user's transaction history
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/PaymentStatus' } }
+      responses:
+        '200':
+          description: Paginated payments
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items: { type: array, items: { $ref: '#/components/schemas/Payment' } }
+                          meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+  /payments/order/{orderId}:
+    get:
+      tags: [Payments]
+      summary: Get the payment for an order
+      parameters: [{ $ref: '#/components/parameters/OrderIdPath' }]
+      responses:
+        '200': { description: Payment }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /payments/{id}:
+    get:
+      tags: [Payments]
+      summary: Get a payment by id (owner or admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Payment }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /payments/{id}/confirm:
+    post:
+      tags: [Payments]
+      summary: Manually mark a payment completed (admin override, e.g. for offline confirmations)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Confirmed }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /payments/{id}/verify:
+    post:
+      tags: [Payments]
+      summary: Ask the gateway what it currently thinks the payment's status is
+      description: The "check my payment" flow after a customer returns from confirming (or not) a USSD prompt. No-ops for a payment already in a terminal state.
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Verified }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /payments/{id}/retry:
+    post:
+      tags: [Payments]
+      summary: Re-initiate a fresh gateway attempt for a failed payment
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Retried }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------------------------------------------------- Deliveries
+  /deliveries:
+    get:
+      tags: [Deliveries]
+      summary: List deliveries (rider sees only their own assignments; admin sees all)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/DeliveryStatus' } }
+      responses:
+        '200':
+          description: Paginated deliveries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items: { type: array, items: { $ref: '#/components/schemas/Delivery' } }
+                          meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /deliveries/order/{orderId}:
+    get:
+      tags: [Deliveries]
+      summary: Get the delivery for an order (owner, assigned rider, relevant pharmacist, or admin)
+      parameters: [{ $ref: '#/components/parameters/OrderIdPath' }]
+      responses:
+        '200': { description: Delivery }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /deliveries/{id}:
+    get:
+      tags: [Deliveries]
+      summary: Get a delivery by id (owner, assigned rider, or admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Delivery }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /deliveries/{id}/assign:
+    patch:
+      tags: [Deliveries]
+      summary: Assign a rider to a delivery (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [riderId]
+              properties: { riderId: { type: string } }
+      responses:
+        '200': { description: Assigned }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /deliveries/{id}/status:
+    patch:
+      tags: [Deliveries]
+      summary: Progress a delivery's status (assigned rider or admin)
+      description: 'Valid transitions: pending→assigned, assigned→picked_up, picked_up→in_transit, in_transit→delivered — or →cancelled from any in-flight state. Recomputes the ETA on every in-flight transition and cascades into the order/payment.'
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties: { status: { $ref: '#/components/schemas/DeliveryStatus' } }
+      responses:
+        '200': { description: Updated }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /deliveries/{id}/location:
+    patch:
+      tags: [Deliveries]
+      summary: Update the rider's live location (assigned rider or admin)
+      description: Recomputes the ETA while the delivery is `picked_up`/`in_transit`.
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                lat: { type: number, minimum: -90, maximum: 90 }
+                lng: { type: number, minimum: -180, maximum: 180 }
+      responses:
+        '200': { description: Updated }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ------------------------------------------------------------- Coupons
+  /coupons:
+    get:
+      tags: [Coupons]
+      summary: List coupons (admin)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: isActive, in: query, schema: { type: boolean } }
+      responses:
+        '200': { description: Paginated coupons }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Coupons]
+      summary: Create a coupon (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CouponInput' }
+      responses:
+        '201': { description: Created }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /coupons/{id}:
+    get:
+      tags: [Coupons]
+      summary: Get a coupon by id (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Coupon }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [Coupons]
+      summary: Update a coupon (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CouponInput' }
+      responses:
+        '200': { description: Updated }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Coupons]
+      summary: Delete a coupon (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ------------------------------------------------------- Notifications
+  /notifications/me:
+    get:
+      tags: [Notifications]
+      summary: The current user's notifications
+      description: Real, persisted, polled in-app notifications — not push (no Firebase project is configured in this environment).
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: Paginated notifications, plus an unreadCount
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+                          meta: { $ref: '#/components/schemas/PaginationMeta' }
+                          unreadCount: { type: integer }
+
+  /notifications/me/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Just the unread count (for a badge)
+      responses:
+        '200':
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties: { count: { type: integer } }
+
+  /notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all of the current user's notifications as read
+      responses:
+        '200': { description: Marked }
+
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark one notification as read (owner only)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { description: Marked }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------- Reports
+  /reports/dashboard:
+    get:
+      tags: [Reports]
+      summary: Admin dashboard aggregate (totals, revenue series, top medicines, payments by method)
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/DashboardReport' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ------------------------------------------------------------ Audit Logs
+  /audit-logs:
+    get:
+      tags: [Audit Logs]
+      summary: List audit log entries (admin)
+      description: One entry per successful mutating admin action (medicine/category/user/coupon/payment changes), recorded after the response is sent.
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: action, in: query, schema: { type: string }, description: 'e.g. medicine.create, user.role_update' }
+        - { name: resourceType, in: query, schema: { type: string } }
+        - { name: actor, in: query, schema: { type: string }, description: User id }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Paginated audit log entries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+                          meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Access token from /auth/login or /auth/register, sent as `Authorization: Bearer <token>`."
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: MongoDB ObjectId
+    OrderIdPath:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: string }
+    MedicineIdPath:
+      name: medicineId
+      in: path
+      required: true
+      schema: { type: string }
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema: { type: string }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: Missing/invalid credentials or token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Forbidden:
+      description: Authenticated, but not permitted to perform this action
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Conflict:
+      description: Resource already exists / state conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    UserResult:
+      description: A single user
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/User' } }
+    UserPage:
+      description: Paginated users
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/components/schemas/User' } }
+                      meta: { $ref: '#/components/schemas/PaginationMeta' }
+    CartResult:
+      description: The current cart
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Cart' } }
+
+  schemas:
+    SuccessEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: {}
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+    PaginationMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+
+    Role:
+      type: string
+      enum: [customer, pharmacist, rider, admin]
+
+    AuthResult:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+
+    UserAddress:
+      type: object
+      properties:
+        _id: { type: string }
+        label: { type: string }
+        street: { type: string }
+        city: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        isDefault: { type: boolean }
+
+    User:
+      type: object
+      properties:
+        _id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        pharmacy: { type: string, nullable: true }
+        addresses: { type: array, items: { $ref: '#/components/schemas/UserAddress' } }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        icon: { type: string }
+        image: { type: string }
+        parent: { type: string, nullable: true }
+        sortOrder: { type: integer }
+        isActive: { type: boolean }
+
+    Category:
+      allOf:
+        - $ref: '#/components/schemas/CategoryInput'
+        - type: object
+          properties:
+            _id: { type: string }
+            slug: { type: string }
+
+    PharmacyInput:
+      type: object
+      required: [name, phone, licenseNumber, address]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        licenseNumber: { type: string }
+        logo: { type: string }
+        coverImage: { type: string }
+        address:
+          type: object
+          required: [street, city]
+          properties:
+            street: { type: string }
+            city: { type: string }
+            country: { type: string, default: Somalia }
+            lat: { type: number }
+            lng: { type: number }
+        operatingHours:
+          type: object
+          properties:
+            open: { type: string, example: '08:00' }
+            close: { type: string, example: '22:00' }
+        owner: { type: string, description: Admin-only — assign a specific owner. }
+        isVerified: { type: boolean, description: Admin-only. }
+        isActive: { type: boolean, description: Admin-only. }
+
+    Pharmacy:
+      allOf:
+        - $ref: '#/components/schemas/PharmacyInput'
+        - type: object
+          properties:
+            _id: { type: string }
+            owner: { type: string }
+            ratingAverage: { type: number }
+            ratingCount: { type: integer }
+
+    MedicineInput:
+      type: object
+      required: [name, category, unit, price, stock]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 150 }
+        description: { type: string, maxLength: 2000 }
+        category: { type: string }
+        pharmacy: { type: string, description: Required when creating as admin. }
+        manufacturer: { type: string }
+        images: { type: array, items: { type: string } }
+        unit: { type: string, example: 20 Tablets }
+        price: { type: number, minimum: 0 }
+        discountPrice: { type: number, minimum: 0, nullable: true }
+        stock: { type: integer, minimum: 0 }
+        requiresPrescription: { type: boolean, default: false }
+        tags: { type: array, items: { type: string } }
+        isActive: { type: boolean }
+
+    Medicine:
+      allOf:
+        - $ref: '#/components/schemas/MedicineInput'
+        - type: object
+          properties:
+            _id: { type: string }
+            currency: { type: string, default: USD }
+            inStock: { type: boolean, description: 'Virtual: stock > 0.' }
+            effectivePrice: { type: number, description: 'Virtual: discountPrice if set, else price.' }
+            createdAt: { type: string, format: date-time }
+
+    MedicinePage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Medicine' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    CartItem:
+      type: object
+      properties:
+        medicine: { $ref: '#/components/schemas/Medicine' }
+        quantity: { type: integer }
+        unitPrice: { type: number, description: discountPrice if set, else price, at the time of viewing. }
+        lineTotal: { type: number }
+
+    Cart:
+      type: object
+      properties:
+        _id: { type: string }
+        user: { type: string }
+        items: { type: array, items: { $ref: '#/components/schemas/CartItem' } }
+        subtotal: { type: number }
+        itemCount: { type: integer }
+        updatedAt: { type: string, format: date-time }
+
+    OrderStatus:
+      type: string
+      enum: [pending, confirmed, preparing, out_for_delivery, delivered, cancelled]
+
+    PaymentMethod:
+      type: string
+      enum: [zaad, edahab, cod]
+
+    OrderAddress:
+      type: object
+      required: [street, city]
+      properties:
+        label: { type: string, default: Home }
+        street: { type: string }
+        city: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+
+    CheckoutInput:
+      type: object
+      required: [deliveryAddress, paymentMethod]
+      properties:
+        deliveryAddress: { $ref: '#/components/schemas/OrderAddress' }
+        paymentMethod: { $ref: '#/components/schemas/PaymentMethod' }
+        prescriptionImage: { type: string, description: Required if the cart contains any prescription-only item. }
+        couponCode: { type: string }
+        payerPhone: { type: string, description: Required for zaad/edahab. }
+
+    OrderItem:
+      type: object
+      properties:
+        medicine: { type: string, nullable: true }
+        pharmacy: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        price: { type: number }
+        quantity: { type: integer }
+        lineTotal: { type: number }
+
+    Order:
+      type: object
+      properties:
+        _id: { type: string }
+        orderNumber: { type: string }
+        user: { type: string }
+        items: { type: array, items: { $ref: '#/components/schemas/OrderItem' } }
+        subtotal: { type: number }
+        deliveryFee: { type: number }
+        tax: { type: number }
+        couponCode: { type: string, nullable: true }
+        discount: { type: number }
+        total: { type: number }
+        deliveryAddress: { $ref: '#/components/schemas/OrderAddress' }
+        paymentMethod: { $ref: '#/components/schemas/PaymentMethod' }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        prescriptionRequired: { type: boolean }
+        prescriptionImage: { type: string }
+        statusHistory:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { $ref: '#/components/schemas/OrderStatus' }
+              at: { type: string, format: date-time }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        deliveredAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    PaymentStatus:
+      type: string
+      enum: [pending, processing, completed, failed, refunded, cancelled]
+
+    Payment:
+      type: object
+      properties:
+        _id: { type: string }
+        order: { type: string, description: 'Bare id, or populated { _id, orderNumber } on some endpoints.' }
+        user: { type: string }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        amount: { type: number }
+        currency: { type: string, default: USD }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        providerReference: { type: string }
+        payerPhone: { type: string }
+        failureReason: { type: string }
+        attempts: { type: integer }
+        attemptHistory:
+          type: array
+          items:
+            type: object
+            properties:
+              providerReference: { type: string }
+              status: { $ref: '#/components/schemas/PaymentStatus' }
+              failureReason: { type: string }
+              at: { type: string, format: date-time }
+        paidAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    DeliveryStatus:
+      type: string
+      enum: [pending, assigned, picked_up, in_transit, delivered, cancelled]
+
+    Delivery:
+      type: object
+      properties:
+        _id: { type: string }
+        order:
+          description: Populated with orderNumber/total/paymentMethod/status/items/user (see backend/README.md).
+          type: object
+        rider:
+          type: object
+          nullable: true
+          properties:
+            _id: { type: string }
+            name: { type: string }
+            phone: { type: string }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        address: { $ref: '#/components/schemas/OrderAddress' }
+        currentLocation:
+          type: object
+          properties:
+            lat: { type: number, nullable: true }
+            lng: { type: number, nullable: true }
+            updatedAt: { type: string, format: date-time, nullable: true }
+        estimatedDeliveryStart: { type: string, format: date-time, nullable: true }
+        estimatedDeliveryEnd: { type: string, format: date-time, nullable: true }
+        deliveredAt: { type: string, format: date-time, nullable: true }
+        statusHistory:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { $ref: '#/components/schemas/DeliveryStatus' }
+              at: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    CouponInput:
+      type: object
+      required: [code, type, value]
+      properties:
+        code: { type: string, minLength: 3, maxLength: 30 }
+        description: { type: string, maxLength: 300 }
+        type: { type: string, enum: [percentage, fixed] }
+        value: { type: number, minimum: 0, description: Percent (0-100) or a fixed amount, depending on type. }
+        minSubtotal: { type: number, minimum: 0, default: 0 }
+        maxDiscount: { type: number, minimum: 0, nullable: true, description: Percentage coupons only. }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        usageLimit: { type: integer, minimum: 1, nullable: true }
+        isActive: { type: boolean, default: true }
+
+    Coupon:
+      allOf:
+        - $ref: '#/components/schemas/CouponInput'
+        - type: object
+          properties:
+            _id: { type: string }
+            usedCount: { type: integer }
+
+    Notification:
+      type: object
+      properties:
+        _id: { type: string }
+        user: { type: string }
+        order: { type: string, nullable: true }
+        delivery: { type: string, nullable: true }
+        type: { type: string, enum: [delivery_status, order_cancelled] }
+        title: { type: string }
+        message: { type: string }
+        isRead: { type: boolean }
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    AuditLog:
+      type: object
+      properties:
+        _id: { type: string }
+        actor:
+          type: object
+          properties:
+            _id: { type: string }
+            name: { type: string }
+            email: { type: string }
+            role: { $ref: '#/components/schemas/Role' }
+        action: { type: string, example: medicine.create }
+        resourceType: { type: string, example: Medicine }
+        resourceId: { type: string, nullable: true }
+        method: { type: string, example: POST }
+        path: { type: string, example: /api/v1/medicines }
+        statusCode: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    DashboardReport:
+      type: object
+      properties:
+        totals:
+          type: object
+          properties:
+            customers: { type: integer }
+            pharmacists: { type: integer }
+            riders: { type: integer }
+            admins: { type: integer }
+            medicines: { type: integer }
+            categories: { type: integer }
+            pharmacies: { type: integer }
+            orders: { type: integer }
+            deliveredOrders: { type: integer }
+            cancelledOrders: { type: integer }
+            revenue: { type: number, description: Sum of order totals, excluding cancelled orders. }
+        ordersByStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { $ref: '#/components/schemas/OrderStatus' }
+              count: { type: integer }
+        revenueByDay:
+          type: array
+          description: Last 14 days, UTC, zero-filled for days with no orders.
+          items:
+            type: object
+            properties:
+              date: { type: string, example: '2026-07-10' }
+              revenue: { type: number }
+              orders: { type: integer }
+        paymentsByMethod:
+          type: array
+          items:
+            type: object
+            properties:
+              method: { $ref: '#/components/schemas/PaymentMethod' }
+              count: { type: integer }
+              collectedAmount: { type: number, description: Sum of amount where status=completed. }
+        topMedicines:
+          type: array
+          items:
+            type: object
+            properties:
+              medicineId: { type: string }
+              name: { type: string }
+              unitsSold: { type: integer }
+              revenue: { type: number }

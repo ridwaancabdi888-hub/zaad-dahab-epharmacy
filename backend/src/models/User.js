@@ -85,6 +85,10 @@ userSchema.set('toJSON', {
   },
 });
 
+// Admin's role-filtered user list (`GET /users?role=`) and the delivery
+// assignment flow's "find an active rider" lookup both filter on `role`.
+userSchema.index({ role: 1 });
+
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

@@ -68,6 +68,27 @@ describe('Pharmacy API', () => {
     expect(adminList.body.data.some((p) => p._id === pharmacy._id)).toBe(true);
   });
 
+  it('filters the public list by city, case-insensitively, without treating it as a regex', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const pharmacist = await registerUser({ role: 'pharmacist' });
+    const pharmacy = await createPharmacy(pharmacist.accessToken); // city: 'Mogadishu'
+    await verifyPharmacy(admin.accessToken, pharmacy._id);
+
+    const matchLower = await request(app).get('/api/v1/pharmacies?city=mogadishu');
+    expect(matchLower.body.data.some((p) => p._id === pharmacy._id)).toBe(true);
+
+    const noMatch = await request(app).get('/api/v1/pharmacies?city=Hargeisa');
+    expect(noMatch.body.data.some((p) => p._id === pharmacy._id)).toBe(false);
+
+    // A regex metacharacter in the query must be treated as a literal
+    // character, not a pattern — otherwise this is both a ReDoS vector
+    // and a way to match unintended cities via crafted input.
+    const regexInjection = await request(app).get(
+      '/api/v1/pharmacies?city=' + encodeURIComponent('.*'),
+    );
+    expect(regexInjection.body.data.some((p) => p._id === pharmacy._id)).toBe(false);
+  });
+
   it('forbids a non-owner pharmacist from updating another pharmacy', async () => {
     const pharmacistA = await registerUser({ role: 'pharmacist' });
     const pharmacistB = await registerUser({ role: 'pharmacist' });

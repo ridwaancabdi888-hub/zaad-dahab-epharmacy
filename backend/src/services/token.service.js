@@ -7,6 +7,7 @@ const RefreshToken = require('../models/RefreshToken');
 function signAccessToken(user) {
   return jwt.sign({ sub: user._id.toString(), role: user.role }, env.jwt.accessSecret, {
     expiresIn: env.jwt.accessExpiresIn,
+    algorithm: 'HS256',
   });
 }
 
@@ -18,6 +19,7 @@ async function issueRefreshToken(user) {
   const jti = crypto.randomUUID();
   const token = jwt.sign({ sub: user._id.toString(), jti }, env.jwt.refreshSecret, {
     expiresIn: env.jwt.refreshExpiresIn,
+    algorithm: 'HS256',
   });
 
   await RefreshToken.create({
@@ -40,7 +42,7 @@ async function issueTokenPair(user) {
 async function rotateRefreshToken(oldToken) {
   let payload;
   try {
-    payload = jwt.verify(oldToken, env.jwt.refreshSecret);
+    payload = jwt.verify(oldToken, env.jwt.refreshSecret, { algorithms: ['HS256'] });
   } catch {
     return null;
   }

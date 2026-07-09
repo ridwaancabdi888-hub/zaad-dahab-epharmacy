@@ -93,6 +93,40 @@ async function priceCart(userId, couponCode) {
   return { items, subtotal, deliveryFee, tax, discount, total, prescriptionRequired, coupon };
 }
 
+/**
+ * Decrements stock for every priced item, but atomically and
+ * conditionally per item (`stock: { $gte: quantity }` in the same
+ * `findOneAndUpdate`) rather than a blind `$inc`. Two concurrent
+ * checkouts racing for the last unit of a medicine would otherwise both
+ * pass `priceCart`'s stock check (a plain read) and then both decrement,
+ * taking stock negative. If any item's guard fails, everything already
+ * decremented in this call is rolled back before throwing, so a failed
+ * checkout never leaves stock partially deducted.
+ *
+ * No multi-document transaction is used here — this environment's
+ * MongoDB instance isn't a replica set, so transactions aren't
+ * available — but each individual `findOneAndUpdate` is still atomic,
+ * which is what actually prevents the oversell.
+ */
+async function decrementStockAtomically(items) {
+  const applied = [];
+  for (const item of items) {
+    const updated = await Medicine.findOneAndUpdate(
+      { _id: item.medicine, stock: { $gte: item.quantity } },
+      { $inc: { stock: -item.quantity } },
+    );
+    if (!updated) {
+      await Promise.all(
+        applied.map((a) => Medicine.updateOne({ _id: a.medicine }, { $inc: { stock: a.quantity } })),
+      );
+      throw ApiError.badRequest(
+        `${item.name} no longer has enough stock available. Please update your cart and try again.`,
+      );
+    }
+    applied.push(item);
+  }
+}
+
 async function quote(userId, { couponCode } = {}) {
   const priced = await priceCart(userId, couponCode);
   return {
@@ -123,11 +157,7 @@ async function checkout(
     throw ApiError.badRequest('payerPhone is required for Zaad and e-Dahab payments');
   }
 
-  await Promise.all(
-    priced.items.map((item) =>
-      Medicine.findByIdAndUpdate(item.medicine, { $inc: { stock: -item.quantity } }),
-    ),
-  );
+  await decrementStockAtomically(priced.items);
 
   const orderNumber = await createUniqueOrderNumber();
 

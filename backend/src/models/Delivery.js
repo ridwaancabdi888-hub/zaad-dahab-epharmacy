@@ -60,6 +60,10 @@ const deliverySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// The rider app's "active" vs "completed" delivery lists filter by
+// rider+status, sorted newest first (see `delivery.service.js#list`).
+deliverySchema.index({ rider: 1, status: 1, createdAt: -1 });
+
 const Delivery = mongoose.model('Delivery', deliverySchema);
 
 module.exports = Delivery;

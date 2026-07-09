@@ -14,7 +14,7 @@ const authenticate = catchAsync(async (req, _res, next) => {
 
   let payload;
   try {
-    payload = jwt.verify(token, env.jwt.accessSecret);
+    payload = jwt.verify(token, env.jwt.accessSecret, { algorithms: ['HS256'] });
   } catch {
     throw ApiError.unauthorized('Invalid or expired access token');
   }
@@ -37,7 +37,7 @@ const optionalAuthenticate = catchAsync(async (req, _res, next) => {
   const token = header.slice('Bearer '.length);
 
   try {
-    const payload = jwt.verify(token, env.jwt.accessSecret);
+    const payload = jwt.verify(token, env.jwt.accessSecret, { algorithms: ['HS256'] });
     const user = await User.findById(payload.sub);
     if (user && user.isActive) {
       req.user = user;
