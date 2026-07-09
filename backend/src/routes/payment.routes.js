@@ -1,11 +1,13 @@
 const { Router } = require('express');
 const paymentController = require('../controllers/payment.controller');
 const validate = require('../middleware/validate.middleware');
+const auditLog = require('../middleware/audit.middleware');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const {
   idParamValidator,
   orderIdParamValidator,
   providerParamValidator,
+  listValidator,
   listMineValidator,
 } = require('../validators/payment.validator');
 
@@ -22,7 +24,7 @@ router.post(
 
 router.use(authenticate);
 
-router.get('/', authorize('admin'), paymentController.list);
+router.get('/', authorize('admin'), listValidator, validate, paymentController.list);
 router.get('/me', listMineValidator, validate, paymentController.listMine);
 router.get('/order/:orderId', orderIdParamValidator, validate, paymentController.getByOrderId);
 router.get('/:id', idParamValidator, validate, paymentController.getById);
@@ -31,6 +33,7 @@ router.post(
   authorize('admin'),
   idParamValidator,
   validate,
+  auditLog('payment.confirm', 'Payment'),
   paymentController.confirm,
 );
 router.post('/:id/verify', idParamValidator, validate, paymentController.verify);

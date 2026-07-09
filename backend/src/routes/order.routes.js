@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const orderController = require('../controllers/order.controller');
 const validate = require('../middleware/validate.middleware');
+const auditLog = require('../middleware/audit.middleware');
 const { authenticate } = require('../middleware/auth.middleware');
 const {
   checkoutValidator,
@@ -18,7 +19,19 @@ router.post('/quote', quoteValidator, validate, orderController.quote);
 router.post('/', checkoutValidator, validate, orderController.checkout);
 router.get('/', listOrderValidator, validate, orderController.list);
 router.get('/:id', idParamValidator, validate, orderController.getById);
-router.patch('/:id/status', updateStatusValidator, validate, orderController.updateStatus);
-router.patch('/:id/cancel', idParamValidator, validate, orderController.cancel);
+router.patch(
+  '/:id/status',
+  updateStatusValidator,
+  validate,
+  auditLog('order.status_update', 'Order'),
+  orderController.updateStatus,
+);
+router.patch(
+  '/:id/cancel',
+  idParamValidator,
+  validate,
+  auditLog('order.cancel', 'Order'),
+  orderController.cancel,
+);
 
 module.exports = router;

@@ -27,8 +27,12 @@ DESIGN.md      Visual design system reference used by the mobile app
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Backend: project skeleton, JWT auth, and the full domain — Users, Pharmacies, Medicines, Categories, Cart, Orders, Payments (sandbox gateway), Deliveries | ✅ Complete |
-| 2 | Flutter mobile app: splash, onboarding, auth (login/register/forgot+reset password), themed bottom-nav shell (Home/Categories/Cart/Profile) wired to the real backend | ✅ Complete |
-| 3 | React admin panel | Not started |
-| 4 | Checkout/order tracking/product detail screens, real Zaad/e-Dahab merchant integration, Firebase notifications, Google Maps live tracking, image upload | Not started |
+| 2 | Flutter mobile app: splash, onboarding, auth, themed bottom-nav shell (Home/Categories/Cart/Profile) | ✅ Complete |
+| 3 | Mobile: Home module (search, medicine detail, wishlist, pagination) | ✅ Complete |
+| 4 | Mobile: shopping cart & checkout (quantity, coupon, delivery fee, address, payment selection, order summary/placement) | ✅ Complete |
+| 5 | Backend: Zaad/e-Dahab sandbox payment gateway integration (verification, status, transaction history, retries, webhooks) | ✅ Complete |
+| 6 | Mobile: delivery system (rider app, Google Maps tracking with fallback, ETA, notifications) | ✅ Complete |
+| 7 | React admin panel: login, dashboard, medicines/categories CRUD, orders, customers, payments, reports & charts, PDF/Excel export, role management, audit logs | ✅ Complete |
+| 8 | Real Zaad/e-Dahab merchant integration, Firebase push notifications, prescription/product image upload | Not started |
 
-See [backend/README.md](backend/README.md) for the API reference, and [mobile/README.md](mobile/README.md) for the Flutter app.
+See [backend/README.md](backend/README.md) for the API reference, [mobile/README.md](mobile/README.md) for the Flutter app, and [admin-panel/README.md](admin-panel/README.md) for the admin dashboard.

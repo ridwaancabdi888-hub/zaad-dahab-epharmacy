@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const categoryController = require('../controllers/category.controller');
 const validate = require('../middleware/validate.middleware');
+const auditLog = require('../middleware/audit.middleware');
 const { authenticate, optionalAuthenticate, authorize } = require('../middleware/auth.middleware');
 const {
   createCategoryValidator,
@@ -19,6 +20,7 @@ router.post(
   authorize('admin'),
   createCategoryValidator,
   validate,
+  auditLog('category.create', 'Category'),
   categoryController.create,
 );
 router.patch(
@@ -27,6 +29,7 @@ router.patch(
   authorize('admin'),
   updateCategoryValidator,
   validate,
+  auditLog('category.update', 'Category'),
   categoryController.update,
 );
 router.delete(
@@ -35,6 +38,7 @@ router.delete(
   authorize('admin'),
   idParamValidator,
   validate,
+  auditLog('category.delete', 'Category'),
   categoryController.remove,
 );
 

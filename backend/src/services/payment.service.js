@@ -36,11 +36,24 @@ async function getByOrderId(orderId, actingUser) {
   return payment;
 }
 
+/** Admin-only: every payment in the system, paginated and filterable. */
 async function list(query) {
+  const { page, limit, skip } = parsePagination(query);
   const filter = {};
   if (query.status) filter.status = query.status;
   if (query.method) filter.method = query.method;
-  return Payment.find(filter).sort({ createdAt: -1 });
+
+  const [items, total] = await Promise.all([
+    Payment.find(filter)
+      .populate('order', 'orderNumber')
+      .populate('user', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Payment.countDocuments(filter),
+  ]);
+
+  return { items, meta: buildMeta({ page, limit, total }) };
 }
 
 /** The current user's own transaction history, most recent first. */

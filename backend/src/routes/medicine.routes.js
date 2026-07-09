@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const medicineController = require('../controllers/medicine.controller');
 const validate = require('../middleware/validate.middleware');
+const auditLog = require('../middleware/audit.middleware');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const {
   createMedicineValidator,
@@ -20,6 +21,7 @@ router.post(
   authorize('pharmacist', 'admin'),
   createMedicineValidator,
   validate,
+  auditLog('medicine.create', 'Medicine'),
   medicineController.create,
 );
 router.patch(
@@ -28,6 +30,7 @@ router.patch(
   authorize('pharmacist', 'admin'),
   updateMedicineValidator,
   validate,
+  auditLog('medicine.update', 'Medicine'),
   medicineController.update,
 );
 router.delete(
@@ -36,6 +39,7 @@ router.delete(
   authorize('pharmacist', 'admin'),
   idParamValidator,
   validate,
+  auditLog('medicine.delete', 'Medicine'),
   medicineController.remove,
 );
 

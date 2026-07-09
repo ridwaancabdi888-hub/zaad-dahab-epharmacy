@@ -11,6 +11,8 @@ const paymentRoutes = require('./payment.routes');
 const deliveryRoutes = require('./delivery.routes');
 const couponRoutes = require('./coupon.routes');
 const notificationRoutes = require('./notification.routes');
+const reportRoutes = require('./report.routes');
+const auditRoutes = require('./audit.routes');
 
 const router = Router();
 
@@ -26,5 +28,7 @@ router.use('/payments', paymentRoutes);
 router.use('/deliveries', deliveryRoutes);
 router.use('/coupons', couponRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/reports', reportRoutes);
+router.use('/audit-logs', auditRoutes);
 
 module.exports = router;

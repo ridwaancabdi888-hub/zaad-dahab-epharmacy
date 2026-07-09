@@ -15,11 +15,13 @@ REST API for the Zaad/e-Dahab E-Pharmacy platform. Node.js + Express + MongoDB (
 - **Payments**: a pluggable gateway abstraction (`zaad`, `edahab`, `cod`) backed by clearly-labeled sandbox mocks until real merchant credentials are supplied — same `{ initiate, checkStatus }` interface a real integration would implement. Includes deterministic sandbox test scenarios (magic payer-phone suffixes), self-service payment status verification, retry for failed payments, an HMAC-signed webhook endpoint for async provider callbacks, and per-user transaction history
 - **Deliveries**: rider assignment, a rider-driven status state machine (`pending → assigned → picked_up → in_transit → delivered`), live location updates, cascading effects into the linked order/payment (e.g. a delivered COD delivery auto-completes its payment), and a server-computed estimated delivery window that refreshes every time the rider's location or status changes
 - **Notifications**: real, persisted in-app notifications (not push — no Firebase project is configured) created automatically on every delivery status change and order cancellation, with per-user history and read/unread state
+- **Reports**: `GET /reports/dashboard` — one admin-only aggregation endpoint (MongoDB aggregation pipelines) covering totals by role/catalog/orders, revenue, a 14-day revenue/order series, orders-by-status, payments-by-method, and top-selling medicines. Backs the admin panel's Dashboard and Reports screens
+- **Audit Logs**: every mutating admin action (medicine/category/coupon create/update/delete, user role/activation changes, order status update/cancel, payment manual confirm) is recorded — actor, action, resource, method/path/status — via a generic `auditLog()` middleware and browsable through `GET /audit-logs` (paginated, filterable by action/resourceType/actor/date range)
 - Centralized error handling, request validation, rate limiting on auth routes, security headers (helmet), CORS, body sanitization against NoSQL operator injection
 - Structured logging (winston/morgan)
 - Full integration + unit test suite (Jest + Supertest + mongodb-memory-server — a real in-memory MongoDB engine, not mocks)
 
-Not yet built: the React admin panel, real Zaad/e-Dahab merchant integration, real push notifications (FCM), and file/image upload (prescription images and product photos are plain URL strings for now). Google Maps live tracking is implemented on the mobile side with a graceful fallback when no API key is configured — see `mobile/README.md`.
+Not yet built: real Zaad/e-Dahab merchant integration, real push notifications (FCM), and file/image upload (prescription images and product photos are plain URL strings for now). Google Maps live tracking is implemented on the mobile side with a graceful fallback when no API key is configured — see `mobile/README.md`. The React admin panel is now implemented — see `admin-panel/README.md`.
 
 ## Getting started
 
@@ -125,7 +127,7 @@ Base path: `API_PREFIX` (default `/api/v1`)
 ### Payments
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/payments` | admin | List all payments (filter by `status`/`method`) |
+| GET | `/payments` | admin | List all payments, paginated (filter by `status`/`method`); each item's `order`/`user` are populated with `orderNumber`/`name`+`email` |
 | GET | `/payments/me` | Bearer | The current user's own transaction history (paginated, filter by `status`) |
 | GET | `/payments/order/:orderId` | owner/relevant pharmacist/admin | Get the payment for an order |
 | GET | `/payments/:id` | owner/admin | Get a payment |
@@ -181,6 +183,20 @@ Every delivery response also populates its `order` field with `orderNumber`, `to
 | PATCH | `/notifications/read-all` | Bearer | Mark all of the current user's notifications as read |
 
 A notification is created automatically for the order's customer on every delivery status change (`assigned`, `picked_up`, `in_transit`, `delivered`, `cancelled`) and on order cancellation. This is real, persisted, polled-for data — not a stand-in for push notifications, which would need a Firebase project this environment doesn't have.
+
+### Reports
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/reports/dashboard` | admin | One aggregation covering `totals` (users by role, catalog counts, order counts, revenue), `ordersByStatus`, `revenueByDay` (last 14 days), `paymentsByMethod`, and `topMedicines` (top 5 by units sold) |
+
+"Revenue" is the sum of `total` on every order that isn't `cancelled` — the closest honest proxy this domain model supports, since Cash-on-Delivery orders have no stricter "payment completed" signal until they're actually delivered. All date bucketing in `revenueByDay` is done in UTC to match MongoDB's `$dateToString` default, deliberately avoiding the server's local timezone.
+
+### Audit Logs
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/audit-logs` | admin | Paginated log of mutating admin actions, filterable by `action`, `resourceType`, `actor` (user id), and `from`/`to` (ISO8601 dates) |
+
+An entry is written by a generic `auditLog(action, resourceType)` middleware wired into every admin-mutation route (medicines, categories, coupons, user role/activation changes, order status update/cancel, payment manual confirm) — actor, action, resource type/id, HTTP method/path, and status code. Writes happen fire-and-forget on `res.on('finish')`, after a successful (< 400) response, so audit logging can never slow down or break the request it's observing; failed requests are never logged.
 
 ## Business rules worth knowing
 

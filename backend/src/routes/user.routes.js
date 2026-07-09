@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const userController = require('../controllers/user.controller');
 const validate = require('../middleware/validate.middleware');
+const auditLog = require('../middleware/audit.middleware');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const {
   updateProfileValidator,
@@ -54,6 +55,7 @@ router.patch(
   authorize('admin'),
   adminUpdateValidator,
   validate,
+  auditLog('user.role_update', 'User'),
   userController.adminUpdate,
 );
 

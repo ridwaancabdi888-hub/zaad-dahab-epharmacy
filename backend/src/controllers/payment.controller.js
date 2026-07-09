@@ -13,8 +13,8 @@ const getByOrderId = catchAsync(async (req, res) => {
 });
 
 const list = catchAsync(async (req, res) => {
-  const payments = await paymentService.list(req.query);
-  return new ApiResponse(200, payments, 'Payments retrieved').send(res);
+  const { items, meta } = await paymentService.list(req.query);
+  return new ApiResponse(200, { items, meta }, 'Payments retrieved').send(res);
 });
 
 const listMine = catchAsync(async (req, res) => {

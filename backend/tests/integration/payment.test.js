@@ -124,6 +124,38 @@ describe('Payment API — admin confirm (manual override)', () => {
       .set('Authorization', `Bearer ${customer.accessToken}`);
     expect(listRes.status).toBe(403);
   });
+
+  it('lets an admin list every payment, paginated and filterable by status/method', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+
+    await checkoutOrder(customer.accessToken, medicine._id, { paymentMethod: 'cod' });
+    await checkoutOrder(customer.accessToken, medicine._id, { paymentMethod: 'zaad' });
+
+    const listRes = await request(app)
+      .get('/api/v1/payments')
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.data.items.length).toBeGreaterThanOrEqual(2);
+    expect(listRes.body.data.meta.total).toBeGreaterThanOrEqual(2);
+    expect(listRes.body.data.items[0].order.orderNumber).toBeDefined();
+    expect(listRes.body.data.items[0].user.name).toBeDefined();
+
+    const codOnly = await request(app)
+      .get('/api/v1/payments')
+      .query({ method: 'cod' })
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+    expect(codOnly.status).toBe(200);
+    expect(codOnly.body.data.items.every((p) => p.method === 'cod')).toBe(true);
+
+    const pagedRes = await request(app)
+      .get('/api/v1/payments')
+      .query({ page: 1, limit: 1 })
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+    expect(pagedRes.body.data.items).toHaveLength(1);
+    expect(pagedRes.body.data.meta.limit).toBe(1);
+  });
 });
 
 describe('Payment API — sandbox verification scenarios', () => {

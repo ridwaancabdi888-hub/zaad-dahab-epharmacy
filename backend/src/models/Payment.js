@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const PAYMENT_STATUSES = ['pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'];
+const PAYMENT_METHODS = ['zaad', 'edahab', 'cod'];
 
 const attemptHistorySchema = new mongoose.Schema(
   {
@@ -28,7 +29,7 @@ const paymentSchema = new mongoose.Schema(
     },
     method: {
       type: String,
-      enum: ['zaad', 'edahab', 'cod'],
+      enum: PAYMENT_METHODS,
       required: true,
     },
     amount: {
@@ -82,3 +83,4 @@ const Payment = mongoose.model('Payment', paymentSchema);
 
 module.exports = Payment;
 module.exports.PAYMENT_STATUSES = PAYMENT_STATUSES;
+module.exports.PAYMENT_METHODS = PAYMENT_METHODS;
