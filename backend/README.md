@@ -39,6 +39,8 @@ npm run dev              # starts the API with nodemon
 npm run seed              # optional: one account per role + a sample catalog — see "Seeded test accounts"
 ```
 
+`nodemon.json` scopes the auto-reload watch to `src/` and `.env` only — editing `scripts/`, `tests/`, or docs won't restart the server out from under a client mid-session (every restart briefly drops any in-flight request from a running mobile/admin client).
+
 ## Scripts
 
 | Script | Purpose |
