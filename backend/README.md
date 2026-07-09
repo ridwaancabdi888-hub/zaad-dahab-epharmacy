@@ -29,7 +29,14 @@ Not yet built: real Zaad/e-Dahab merchant integration, real push notifications (
 ```bash
 cp .env.example .env   # then fill in real secrets
 npm install
-npm run dev             # starts the API with nodemon, requires a running MongoDB at MONGO_URI
+
+# No local MongoDB? Run this in its own terminal first — a real, local
+# MongoDB with no separate install (data does not persist across restarts):
+npm run dev:mongo       # ready at mongodb://127.0.0.1:27117/zaad_dahab_pharmacy
+                         # matches the MONGO_URI already in .env.example
+
+npm run dev              # starts the API with nodemon
+npm run seed              # optional: one account per role + a sample catalog — see "Seeded test accounts"
 ```
 
 ## Scripts
@@ -38,9 +45,24 @@ npm run dev             # starts the API with nodemon, requires a running MongoD
 | --- | --- |
 | `npm run dev` | Start the API with nodemon (auto-reload) |
 | `npm start` | Start the API in production mode |
+| `npm run dev:mongo` | Start a real local MongoDB for development (no install required, data doesn't persist) — see `scripts/dev-mongo.js` |
+| `npm run seed` | Seed one account per role + a sample pharmacy/catalog/coupon — see `scripts/seed.js` and "Seeded test accounts" below |
 | `npm test` | Run the full Jest suite (spins up an in-memory MongoDB) |
 | `npm run test:coverage` | Run tests with coverage report |
 | `npm run lint` | Lint the codebase with ESLint |
+
+### Seeded test accounts
+
+`npm run seed` creates one account per role, all with password `Passw0rd1`:
+
+| Role | Email |
+| --- | --- |
+| Admin | `admin@zaaddahab.test` |
+| Pharmacist | `pharmacist@zaaddahab.test` |
+| Rider | `rider@zaaddahab.test` |
+| Customer | `customer@zaaddahab.test` |
+
+Plus a verified pharmacy ("Hodan Pharmacy") with 4 medicines across 2 categories, and a `WELCOME10` coupon (10% off, $5 minimum). Not idempotent by design — re-running it against the same database fails on duplicate emails/license numbers, so pair it with `npm run dev:mongo` (which starts empty every time) for a clean slate.
 
 ## API documentation
 
