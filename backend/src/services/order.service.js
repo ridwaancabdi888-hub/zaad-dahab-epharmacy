@@ -3,6 +3,7 @@ const Payment = require('../models/Payment');
 const Delivery = require('../models/Delivery');
 const Medicine = require('../models/Medicine');
 const cartService = require('./cart.service');
+const couponService = require('./coupon.service');
 const paymentGateway = require('./paymentGateway.service');
 const ApiError = require('../utils/ApiError');
 const generateOrderNumber = require('../utils/generateOrderNumber');
@@ -29,8 +30,14 @@ async function createUniqueOrderNumber() {
   throw new Error('Failed to generate a unique order number');
 }
 
-async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionImage }) {
-  const cart = await cartService.getOrCreateCart(userId);
+/**
+ * Prices the user's current cart: validates every item is still
+ * available/in stock, applies an optional coupon, and computes the full
+ * subtotal/delivery-fee/tax/discount/total breakdown. Shared by both
+ * `quote` (preview, no side effects) and `checkout` (persists an order),
+ * so the two can never drift apart on how a total is calculated.
+ */
+async function priceCart(userId, couponCode) {
   const populatedCart = await cartService.getCart(userId);
 
   if (populatedCart.items.length === 0) {
@@ -68,19 +75,50 @@ async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionIm
     });
   }
 
-  if (prescriptionRequired && !prescriptionImage) {
+  const subtotal = Number(items.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2));
+
+  let coupon = null;
+  let discount = 0;
+  if (couponCode) {
+    const result = await couponService.validate(couponCode, subtotal);
+    coupon = result.coupon;
+    discount = result.discount;
+  }
+
+  const deliveryFee = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
+  const tax = Number((subtotal * TAX_RATE).toFixed(2));
+  const total = Number(Math.max(0, subtotal - discount + deliveryFee + tax).toFixed(2));
+
+  return { items, subtotal, deliveryFee, tax, discount, total, prescriptionRequired, coupon };
+}
+
+async function quote(userId, { couponCode } = {}) {
+  const priced = await priceCart(userId, couponCode);
+  return {
+    subtotal: priced.subtotal,
+    deliveryFee: priced.deliveryFee,
+    tax: priced.tax,
+    discount: priced.discount,
+    total: priced.total,
+    prescriptionRequired: priced.prescriptionRequired,
+    couponCode: priced.coupon?.code ?? null,
+  };
+}
+
+async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionImage, couponCode }) {
+  const cart = await cartService.getOrCreateCart(userId);
+  const priced = await priceCart(userId, couponCode);
+
+  if (priced.prescriptionRequired && !prescriptionImage) {
     throw ApiError.badRequest(
       'One or more items require a prescription. Please attach a prescription image.',
     );
   }
 
-  const subtotal = Number(items.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2));
-  const deliveryFee = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
-  const tax = Number((subtotal * TAX_RATE).toFixed(2));
-  const total = Number((subtotal + deliveryFee + tax).toFixed(2));
-
   await Promise.all(
-    items.map((item) => Medicine.findByIdAndUpdate(item.medicine, { $inc: { stock: -item.quantity } })),
+    priced.items.map((item) =>
+      Medicine.findByIdAndUpdate(item.medicine, { $inc: { stock: -item.quantity } }),
+    ),
   );
 
   const orderNumber = await createUniqueOrderNumber();
@@ -88,20 +126,26 @@ async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionIm
   const order = await Order.create({
     orderNumber,
     user: userId,
-    items,
-    subtotal,
-    deliveryFee,
-    tax,
-    total,
+    items: priced.items,
+    subtotal: priced.subtotal,
+    deliveryFee: priced.deliveryFee,
+    tax: priced.tax,
+    discount: priced.discount,
+    couponCode: priced.coupon?.code ?? null,
+    total: priced.total,
     deliveryAddress,
     paymentMethod,
-    prescriptionRequired,
+    prescriptionRequired: priced.prescriptionRequired,
     prescriptionImage: prescriptionImage || '',
   });
 
+  if (priced.coupon) {
+    await couponService.redeem(priced.coupon._id);
+  }
+
   const gateway = paymentGateway.getGateway(paymentMethod);
   const gatewayResult = await gateway.initiate({
-    amount: total,
+    amount: priced.total,
     currency: 'USD',
     reference: order.orderNumber,
   });
@@ -110,7 +154,7 @@ async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionIm
     order: order._id,
     user: userId,
     method: paymentMethod,
-    amount: total,
+    amount: priced.total,
     status: gatewayResult.status,
     providerReference: gatewayResult.providerReference,
     rawResponse: gatewayResult.rawResponse,
@@ -258,6 +302,7 @@ async function markOutForDelivery(orderId) {
 }
 
 module.exports = {
+  quote,
   checkout,
   list,
   getById,

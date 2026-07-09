@@ -114,7 +114,8 @@ Base path: `API_PREFIX` (default `/api/v1`)
 ### Orders
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/orders` | Bearer | Checkout the current cart (`deliveryAddress`, `paymentMethod`, optional `prescriptionImage`) — creates the Order, Payment, and Delivery together |
+| POST | `/orders/quote` | Bearer | Price the current cart (optional `couponCode`) without creating anything — subtotal/delivery fee/tax/discount/total, for a live checkout preview |
+| POST | `/orders` | Bearer | Checkout the current cart (`deliveryAddress`, `paymentMethod`, optional `prescriptionImage`, optional `couponCode`) — creates the Order, Payment, and Delivery together |
 | GET | `/orders` | Bearer | List orders, scoped by role (customer: own; pharmacist: theirs; admin: all) |
 | GET | `/orders/:id` | owner/relevant pharmacist/admin | Get an order |
 | PATCH | `/orders/:id/status` | pharmacist/admin | Manual transitions only: `pending→confirmed→preparing`, or `cancelled`. `out_for_delivery`/`delivered` are cascaded automatically from the linked Delivery, never set directly here |
@@ -127,6 +128,17 @@ Base path: `API_PREFIX` (default `/api/v1`)
 | GET | `/payments/order/:orderId` | owner/relevant pharmacist/admin | Get the payment for an order |
 | GET | `/payments/:id` | owner/admin | Get a payment |
 | POST | `/payments/:id/confirm` | admin | Simulate a gateway confirmation (stand-in for a real provider webhook) |
+
+### Coupons
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/coupons` | admin | Create a coupon (`code`, `type`: `percentage`\|`fixed`, `value`, optional `minSubtotal`/`maxDiscount`/`expiresAt`/`usageLimit`) |
+| GET | `/coupons` | admin | List coupons (filter by `isActive`, paginated) |
+| GET | `/coupons/:id` | admin | Get a coupon |
+| PATCH | `/coupons/:id` | admin | Update a coupon |
+| DELETE | `/coupons/:id` | admin | Delete a coupon |
+
+There's no public "apply coupon" endpoint — a coupon is validated as a side effect of `/orders/quote` or `/orders` (via `couponCode`), which is the only place discounts ever apply. Usage (`usedCount`) is only incremented on an actual checkout, never on a quote/preview.
 
 ### Deliveries
 | Method | Path | Auth | Description |

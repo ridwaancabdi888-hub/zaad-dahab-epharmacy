@@ -11,7 +11,10 @@ const checkoutValidator = [
     .isIn(PAYMENT_METHODS)
     .withMessage(`paymentMethod must be one of: ${PAYMENT_METHODS.join(', ')}`),
   body('prescriptionImage').optional({ values: 'falsy' }).trim().isString(),
+  body('couponCode').optional({ values: 'falsy' }).trim().isString(),
 ];
+
+const quoteValidator = [body('couponCode').optional({ values: 'falsy' }).trim().isString()];
 
 const idParamValidator = [param('id').isMongoId().withMessage('Invalid order id')];
 
@@ -28,4 +31,10 @@ const listOrderValidator = [
   query('status').optional().isIn(ORDER_STATUSES),
 ];
 
-module.exports = { checkoutValidator, idParamValidator, updateStatusValidator, listOrderValidator };
+module.exports = {
+  checkoutValidator,
+  quoteValidator,
+  idParamValidator,
+  updateStatusValidator,
+  listOrderValidator,
+};

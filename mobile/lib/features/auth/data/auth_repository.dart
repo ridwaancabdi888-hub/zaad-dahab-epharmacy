@@ -87,6 +87,21 @@ class AuthRepository {
     });
   }
 
+  Future<UserModel> addAddress({
+    required String label,
+    required String street,
+    required String city,
+    bool isDefault = false,
+  }) async {
+    final json = await _apiClient.post('/users/me/addresses', data: {
+      'label': label,
+      'street': street,
+      'city': city,
+      'isDefault': isDefault,
+    }) as Map<String, dynamic>;
+    return UserModel.fromJson(json);
+  }
+
   Future<void> _persist(AuthResult result) {
     return _tokenStorage.saveTokens(
       accessToken: result.accessToken,

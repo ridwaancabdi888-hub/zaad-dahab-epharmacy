@@ -251,3 +251,171 @@ describe('Order visibility and status transitions', () => {
     expect(cancelRes.status).toBe(400);
   });
 });
+
+describe('Order quote and coupons', () => {
+  async function createCoupon(adminToken, overrides = {}) {
+    const res = await request(app)
+      .post('/api/v1/coupons')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: overrides.code || `QUOTE${Date.now()}`,
+        type: overrides.type || 'percentage',
+        value: overrides.value ?? 10,
+        ...overrides,
+      });
+    return res.body.data;
+  }
+
+  it('quotes a cart without creating an order or mutating the cart', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 10, price: 10 });
+    await addToCart(customer.accessToken, medicine._id, 2);
+
+    const quoteRes = await request(app)
+      .post('/api/v1/orders/quote')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({});
+
+    expect(quoteRes.status).toBe(200);
+    expect(quoteRes.body.data.subtotal).toBe(20);
+    expect(quoteRes.body.data.discount).toBe(0);
+    expect(quoteRes.body.data.total).toBe(22.4);
+
+    const cartRes = await request(app)
+      .get('/api/v1/cart')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(cartRes.body.data.items).toHaveLength(1);
+  });
+
+  it('applies a percentage coupon to the quote and to checkout, then increments its usage', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 10, price: 20 });
+    await addToCart(customer.accessToken, medicine._id, 1);
+
+    const coupon = await createCoupon(admin.accessToken, {
+      code: 'TEN',
+      type: 'percentage',
+      value: 10,
+    });
+
+    const quoteRes = await request(app)
+      .post('/api/v1/orders/quote')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ couponCode: 'ten' });
+    expect(quoteRes.status).toBe(200);
+    expect(quoteRes.body.data.discount).toBe(2);
+    expect(quoteRes.body.data.couponCode).toBe('TEN');
+
+    const checkoutRes = await request(app)
+      .post('/api/v1/orders')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ deliveryAddress: address, paymentMethod: 'cod', couponCode: 'ten' });
+    expect(checkoutRes.status).toBe(201);
+    expect(checkoutRes.body.data.order.discount).toBe(2);
+    expect(checkoutRes.body.data.order.couponCode).toBe('TEN');
+
+    const couponAfter = await request(app)
+      .get(`/api/v1/coupons/${coupon._id}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+    expect(couponAfter.body.data.usedCount).toBe(1);
+  });
+
+  it('caps a percentage discount at maxDiscount', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 10, price: 40 });
+    await addToCart(customer.accessToken, medicine._id, 1);
+
+    await createCoupon(admin.accessToken, {
+      code: 'CAPPED',
+      type: 'percentage',
+      value: 50,
+      maxDiscount: 5,
+    });
+
+    const quoteRes = await request(app)
+      .post('/api/v1/orders/quote')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ couponCode: 'CAPPED' });
+
+    expect(quoteRes.status).toBe(200);
+    expect(quoteRes.body.data.discount).toBe(5);
+  });
+
+  it('rejects a coupon below its minimum subtotal', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 10, price: 5 });
+    await addToCart(customer.accessToken, medicine._id, 1);
+
+    await createCoupon(admin.accessToken, {
+      code: 'BIGORDER',
+      type: 'fixed',
+      value: 5,
+      minSubtotal: 50,
+    });
+
+    const quoteRes = await request(app)
+      .post('/api/v1/orders/quote')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ couponCode: 'BIGORDER' });
+
+    expect(quoteRes.status).toBe(400);
+  });
+
+  it('rejects an expired or unknown coupon', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 10, price: 20 });
+    await addToCart(customer.accessToken, medicine._id, 1);
+
+    await createCoupon(admin.accessToken, {
+      code: 'EXPIRED',
+      type: 'fixed',
+      value: 5,
+      expiresAt: new Date(Date.now() - 86400000).toISOString(),
+    });
+
+    const expiredRes = await request(app)
+      .post('/api/v1/orders/quote')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ couponCode: 'EXPIRED' });
+    expect(expiredRes.status).toBe(400);
+
+    const unknownRes = await request(app)
+      .post('/api/v1/orders/quote')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ couponCode: 'DOES-NOT-EXIST' });
+    expect(unknownRes.status).toBe(400);
+  });
+
+  it('rejects a coupon that has reached its usage limit', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customerA = await registerUser();
+    const customerB = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 10, price: 20 });
+
+    await createCoupon(admin.accessToken, {
+      code: 'ONEUSE',
+      type: 'fixed',
+      value: 5,
+      usageLimit: 1,
+    });
+
+    await addToCart(customerA.accessToken, medicine._id, 1);
+    await request(app)
+      .post('/api/v1/orders')
+      .set('Authorization', `Bearer ${customerA.accessToken}`)
+      .send({ deliveryAddress: address, paymentMethod: 'cod', couponCode: 'ONEUSE' });
+
+    await addToCart(customerB.accessToken, medicine._id, 1);
+    const secondRes = await request(app)
+      .post('/api/v1/orders')
+      .set('Authorization', `Bearer ${customerB.accessToken}`)
+      .send({ deliveryAddress: address, paymentMethod: 'cod', couponCode: 'ONEUSE' });
+
+    expect(secondRes.status).toBe(400);
+  });
+});

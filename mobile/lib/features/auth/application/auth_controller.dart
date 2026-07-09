@@ -80,6 +80,21 @@ class AuthController extends StateNotifier<AuthState> {
     return _repository.resetPassword(token: token, password: password);
   }
 
+  Future<void> addAddress({
+    required String label,
+    required String street,
+    required String city,
+    bool isDefault = false,
+  }) async {
+    final user = await _repository.addAddress(
+      label: label,
+      street: street,
+      city: city,
+      isDefault: isDefault,
+    );
+    state = AuthState.authenticated(user);
+  }
+
   /// Called by [ApiClient] when a background request's silent token
   /// refresh fails. Tokens are already cleared by that point.
   void handleSessionExpired() {

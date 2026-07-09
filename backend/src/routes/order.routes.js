@@ -4,6 +4,7 @@ const validate = require('../middleware/validate.middleware');
 const { authenticate } = require('../middleware/auth.middleware');
 const {
   checkoutValidator,
+  quoteValidator,
   idParamValidator,
   updateStatusValidator,
   listOrderValidator,
@@ -13,6 +14,7 @@ const router = Router();
 
 router.use(authenticate);
 
+router.post('/quote', quoteValidator, validate, orderController.quote);
 router.post('/', checkoutValidator, validate, orderController.checkout);
 router.get('/', listOrderValidator, validate, orderController.list);
 router.get('/:id', idParamValidator, validate, orderController.getById);
