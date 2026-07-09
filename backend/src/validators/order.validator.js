@@ -12,6 +12,11 @@ const checkoutValidator = [
     .withMessage(`paymentMethod must be one of: ${PAYMENT_METHODS.join(', ')}`),
   body('prescriptionImage').optional({ values: 'falsy' }).trim().isString(),
   body('couponCode').optional({ values: 'falsy' }).trim().isString(),
+  body('payerPhone')
+    .if(body('paymentMethod').isIn(['zaad', 'edahab']))
+    .trim()
+    .matches(/^\+?[0-9]{7,15}$/)
+    .withMessage('A valid payerPhone is required for Zaad and e-Dahab payments'),
 ];
 
 const quoteValidator = [body('couponCode').optional({ values: 'falsy' }).trim().isString()];

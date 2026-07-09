@@ -20,36 +20,52 @@ const _paymentMethodInfo = {
   'cod': (label: 'Cash on Delivery', subtitle: 'Pay when you receive', icon: Icons.payments_outlined),
 };
 
-class CheckoutScreen extends ConsumerWidget {
+class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
 
-  Future<void> _placeOrder(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
+  final _payerPhoneController = TextEditingController();
+
+  @override
+  void dispose() {
+    _payerPhoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _placeOrder() async {
     final controller = ref.read(checkoutControllerProvider.notifier);
     try {
-      final order = await controller.placeOrder();
-      if (context.mounted) {
+      final result = await controller.placeOrder();
+      if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => OrderConfirmationScreen(order: order)),
+          MaterialPageRoute(
+            builder: (_) => OrderConfirmationScreen(order: result.order, payment: result.payment),
+          ),
         );
       }
     } on ApiException catch (error) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } on StateError catch (error) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).user;
     final checkoutState = ref.watch(checkoutControllerProvider);
     final controller = ref.read(checkoutControllerProvider.notifier);
     final quote = checkoutState.quote.valueOrNull;
     final prescriptionBlocked = quote?.prescriptionRequired ?? false;
+    final phoneMissing = checkoutState.requiresPayerPhone && checkoutState.payerPhone.trim().isEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -98,6 +114,19 @@ class CheckoutScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              if (checkoutState.requiresPayerPhone) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _payerPhoneController,
+                  keyboardType: TextInputType.phone,
+                  onChanged: controller.setPayerPhone,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone number to charge',
+                    hintText: '+2526XXXXXXX',
+                    prefixIcon: Icon(Icons.phone_iphone),
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.lg),
               Text('Order Summary', style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: AppSpacing.sm),
@@ -147,9 +176,10 @@ class CheckoutScreen extends ConsumerWidget {
                 isLoading: checkoutState.isPlacingOrder,
                 onPressed: checkoutState.selectedAddress == null ||
                         checkoutState.quote.valueOrNull == null ||
-                        prescriptionBlocked
+                        prescriptionBlocked ||
+                        phoneMissing
                     ? null
-                    : () => _placeOrder(context, ref),
+                    : _placeOrder,
               ),
             ],
           ),

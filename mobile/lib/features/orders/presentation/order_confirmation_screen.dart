@@ -6,15 +6,25 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/widgets/gradient_button.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../payments/data/payment_model.dart';
+import '../../payments/presentation/payment_status_card.dart';
 import '../data/order_model.dart';
 import 'order_detail_screen.dart';
 
 /// Shown immediately after a successful checkout, matching the reference
 /// design's "Order Placed Successfully!" screen.
-class OrderConfirmationScreen extends StatelessWidget {
-  const OrderConfirmationScreen({super.key, required this.order});
+class OrderConfirmationScreen extends StatefulWidget {
+  const OrderConfirmationScreen({super.key, required this.order, required this.payment});
 
   final OrderModel order;
+  final PaymentModel payment;
+
+  @override
+  State<OrderConfirmationScreen> createState() => _OrderConfirmationScreenState();
+}
+
+class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
+  late PaymentModel _payment = widget.payment;
 
   @override
   Widget build(BuildContext context) {
@@ -23,17 +33,19 @@ class OrderConfirmationScreen extends StatelessWidget {
       body: SafeArea(
         child: ResponsiveCenter(
           padding: const EdgeInsets.all(AppSpacing.containerMargin),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: ListView(
             children: [
-              Container(
-                width: 96,
-                height: 96,
-                decoration: const BoxDecoration(
-                  color: AppColors.inStockBackground,
-                  shape: BoxShape.circle,
+              const SizedBox(height: AppSpacing.xl),
+              Center(
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: const BoxDecoration(
+                    color: AppColors.inStockBackground,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_circle, color: AppColors.primary, size: 64),
                 ),
-                child: const Icon(Icons.check_circle, color: AppColors.primary, size: 64),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
@@ -52,7 +64,6 @@ class OrderConfirmationScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.lg),
               Container(
-                width: double.infinity,
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceContainerLowest,
@@ -64,7 +75,7 @@ class OrderConfirmationScreen extends StatelessWidget {
                   children: [
                     Text('Order ID', style: Theme.of(context).textTheme.bodyMedium),
                     Text(
-                      '#${order.orderNumber}',
+                      '#${widget.order.orderNumber}',
                       style: Theme.of(context)
                           .textTheme
                           .bodyLarge
@@ -73,12 +84,17 @@ class OrderConfirmationScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: AppSpacing.md),
+              PaymentStatusCard(
+                payment: _payment,
+                onChanged: (updated) => setState(() => _payment = updated),
+              ),
               const SizedBox(height: AppSpacing.lg),
               GradientButton(
                 label: 'Track Order',
                 icon: Icons.local_shipping_outlined,
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: order.id)),
+                  MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: widget.order.id)),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),

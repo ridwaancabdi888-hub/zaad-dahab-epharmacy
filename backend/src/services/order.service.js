@@ -105,7 +105,10 @@ async function quote(userId, { couponCode } = {}) {
   };
 }
 
-async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionImage, couponCode }) {
+async function checkout(
+  userId,
+  { deliveryAddress, paymentMethod, prescriptionImage, couponCode, payerPhone },
+) {
   const cart = await cartService.getOrCreateCart(userId);
   const priced = await priceCart(userId, couponCode);
 
@@ -113,6 +116,10 @@ async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionIm
     throw ApiError.badRequest(
       'One or more items require a prescription. Please attach a prescription image.',
     );
+  }
+
+  if (['zaad', 'edahab'].includes(paymentMethod) && !payerPhone) {
+    throw ApiError.badRequest('payerPhone is required for Zaad and e-Dahab payments');
   }
 
   await Promise.all(
@@ -148,6 +155,7 @@ async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionIm
     amount: priced.total,
     currency: 'USD',
     reference: order.orderNumber,
+    payerPhone,
   });
 
   const payment = await Payment.create({
@@ -157,7 +165,9 @@ async function checkout(userId, { deliveryAddress, paymentMethod, prescriptionIm
     amount: priced.total,
     status: gatewayResult.status,
     providerReference: gatewayResult.providerReference,
+    payerPhone: payerPhone || '',
     rawResponse: gatewayResult.rawResponse,
+    attemptHistory: [{ providerReference: gatewayResult.providerReference, status: gatewayResult.status }],
   });
 
   const delivery = await Delivery.create({

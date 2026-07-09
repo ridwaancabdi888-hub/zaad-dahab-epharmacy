@@ -7,6 +7,8 @@ import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_indicator.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../checkout/application/checkout_controller.dart';
+import '../../payments/application/payment_providers.dart';
+import '../../payments/presentation/payment_status_card.dart';
 import '../data/order_model.dart';
 
 final orderByIdProvider = FutureProvider.autoDispose.family<OrderModel, String>((ref, id) {
@@ -60,10 +62,20 @@ class OrderDetailScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                Text('Payment', style: Theme.of(context).textTheme.headlineMedium),
-                const SizedBox(height: AppSpacing.sm),
-                Text(order.paymentMethod.toUpperCase(), style: Theme.of(context).textTheme.bodyMedium),
+                ref.watch(paymentByOrderIdProvider(orderId)).when(
+                      data: (payment) => PaymentStatusCard(
+                        payment: payment,
+                        onChanged: (_) => ref.invalidate(paymentByOrderIdProvider(orderId)),
+                      ),
+                      loading: () => const LoadingIndicator(),
+                      error: (error, _) => ErrorView(
+                        error: error,
+                        onRetry: () => ref.invalidate(paymentByOrderIdProvider(orderId)),
+                      ),
+                    ),
                 const SizedBox(height: AppSpacing.lg),
+                Text('Order Summary', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: AppSpacing.sm),
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(

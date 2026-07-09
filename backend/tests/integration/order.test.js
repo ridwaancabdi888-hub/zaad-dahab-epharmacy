@@ -72,7 +72,7 @@ describe('Order checkout', () => {
     const checkoutRes = await request(app)
       .post('/api/v1/orders')
       .set('Authorization', `Bearer ${customer.accessToken}`)
-      .send({ deliveryAddress: address, paymentMethod: 'zaad' });
+      .send({ deliveryAddress: address, paymentMethod: 'zaad', payerPhone: '+252611230000' });
 
     expect(checkoutRes.status).toBe(201);
     const { order, payment, delivery } = checkoutRes.body.data;

@@ -17,9 +17,32 @@ const list = catchAsync(async (req, res) => {
   return new ApiResponse(200, payments, 'Payments retrieved').send(res);
 });
 
+const listMine = catchAsync(async (req, res) => {
+  const { items, meta } = await paymentService.listMine(req.user._id, req.query);
+  return new ApiResponse(200, { items, meta }, 'Transaction history retrieved').send(res);
+});
+
 const confirm = catchAsync(async (req, res) => {
   const payment = await paymentService.confirm(req.params.id);
   return new ApiResponse(200, payment, 'Payment confirmed').send(res);
 });
 
-module.exports = { getById, getByOrderId, list, confirm };
+const verify = catchAsync(async (req, res) => {
+  const payment = await paymentService.verifyStatus(req.params.id, req.user);
+  return new ApiResponse(200, payment, 'Payment status verified').send(res);
+});
+
+const retry = catchAsync(async (req, res) => {
+  const payment = await paymentService.retry(req.params.id, req.user);
+  return new ApiResponse(200, payment, 'Payment retried').send(res);
+});
+
+const webhook = catchAsync(async (req, res) => {
+  const signature = req.headers['x-webhook-signature'];
+  const payment = await paymentService.handleWebhook(req.params.provider, req.rawBody, signature);
+  return new ApiResponse(200, { id: payment._id, status: payment.status }, 'Webhook processed').send(
+    res,
+  );
+});
+
+module.exports = { getById, getByOrderId, list, listMine, confirm, verify, retry, webhook };

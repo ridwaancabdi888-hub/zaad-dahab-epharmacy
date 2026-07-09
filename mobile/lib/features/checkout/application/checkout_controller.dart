@@ -4,7 +4,6 @@ import '../../../core/providers.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/data/user_model.dart';
 import '../../cart/application/cart_controller.dart';
-import '../../orders/data/order_model.dart';
 import '../../orders/data/order_quote_model.dart';
 import '../../orders/data/order_repository.dart';
 
@@ -14,10 +13,13 @@ final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   return OrderRepository(apiClient: ref.watch(apiClientProvider));
 });
 
+const mobileMoneyMethods = ['zaad', 'edahab'];
+
 class CheckoutState {
   const CheckoutState({
     this.selectedAddress,
     this.paymentMethod = 'zaad',
+    this.payerPhone = '',
     this.couponCode = '',
     this.appliedCouponCode,
     this.quote = const AsyncValue.loading(),
@@ -26,14 +28,18 @@ class CheckoutState {
 
   final UserAddress? selectedAddress;
   final String paymentMethod;
+  final String payerPhone;
   final String couponCode;
   final String? appliedCouponCode;
   final AsyncValue<OrderQuote> quote;
   final bool isPlacingOrder;
 
+  bool get requiresPayerPhone => mobileMoneyMethods.contains(paymentMethod);
+
   CheckoutState copyWith({
     UserAddress? selectedAddress,
     String? paymentMethod,
+    String? payerPhone,
     String? couponCode,
     String? appliedCouponCode,
     bool clearAppliedCouponCode = false,
@@ -43,6 +49,7 @@ class CheckoutState {
     return CheckoutState(
       selectedAddress: selectedAddress ?? this.selectedAddress,
       paymentMethod: paymentMethod ?? this.paymentMethod,
+      payerPhone: payerPhone ?? this.payerPhone,
       couponCode: couponCode ?? this.couponCode,
       appliedCouponCode: clearAppliedCouponCode ? null : (appliedCouponCode ?? this.appliedCouponCode),
       quote: quote ?? this.quote,
@@ -79,6 +86,10 @@ class CheckoutController extends StateNotifier<CheckoutState> {
     state = state.copyWith(paymentMethod: method);
   }
 
+  void setPayerPhone(String phone) {
+    state = state.copyWith(payerPhone: phone);
+  }
+
   void setCouponCode(String code) {
     state = state.copyWith(couponCode: code);
   }
@@ -104,23 +115,27 @@ class CheckoutController extends StateNotifier<CheckoutState> {
     );
   }
 
-  Future<OrderModel> placeOrder() async {
+  Future<CheckoutResult> placeOrder() async {
     final address = state.selectedAddress;
     if (address == null) {
       throw StateError('Select a delivery address first');
     }
+    if (state.requiresPayerPhone && state.payerPhone.trim().isEmpty) {
+      throw StateError('Enter the phone number to charge first');
+    }
 
     state = state.copyWith(isPlacingOrder: true);
     try {
-      final order = await _ref.read(orderRepositoryProvider).checkout(
+      final result = await _ref.read(orderRepositoryProvider).checkout(
             label: address.label,
             street: address.street,
             city: address.city,
             paymentMethod: state.paymentMethod,
             couponCode: state.appliedCouponCode,
+            payerPhone: state.requiresPayerPhone ? state.payerPhone.trim() : null,
           );
       await _ref.read(cartControllerProvider.notifier).refresh();
-      return order;
+      return result;
     } finally {
       if (mounted) state = state.copyWith(isPlacingOrder: false);
     }

@@ -12,7 +12,7 @@ REST API for the Zaad/e-Dahab E-Pharmacy platform. Node.js + Express + MongoDB (
 - **Medicines**: per-pharmacy inventory (price, discount price, stock, prescription flag), public search/filter/pagination, owner/admin-only mutation
 - **Cart**: one cart per user, live-priced against current medicine data, stock-aware
 - **Orders**: cart checkout with server-computed subtotal/delivery fee/tax/total, stock decrement, role-scoped listing (customer/pharmacist/admin), a bounded manual status state machine (`pending → confirmed → preparing`), and cancellation with automatic restock + payment/delivery cascade
-- **Payments**: a pluggable gateway abstraction (`zaad`, `edahab`, `cod`) backed by clearly-labeled sandbox mocks until real merchant credentials are supplied — same `{ initiate, confirm }` interface a real integration would implement
+- **Payments**: a pluggable gateway abstraction (`zaad`, `edahab`, `cod`) backed by clearly-labeled sandbox mocks until real merchant credentials are supplied — same `{ initiate, checkStatus }` interface a real integration would implement. Includes deterministic sandbox test scenarios (magic payer-phone suffixes), self-service payment status verification, retry for failed payments, an HMAC-signed webhook endpoint for async provider callbacks, and per-user transaction history
 - **Deliveries**: rider assignment, a rider-driven status state machine (`pending → assigned → picked_up → in_transit → delivered`), live location updates, and cascading effects into the linked order/payment (e.g. a delivered COD delivery auto-completes its payment)
 - Centralized error handling, request validation, rate limiting on auth routes, security headers (helmet), CORS, body sanitization against NoSQL operator injection
 - Structured logging (winston/morgan)
@@ -125,9 +125,26 @@ Base path: `API_PREFIX` (default `/api/v1`)
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/payments` | admin | List all payments (filter by `status`/`method`) |
+| GET | `/payments/me` | Bearer | The current user's own transaction history (paginated, filter by `status`) |
 | GET | `/payments/order/:orderId` | owner/relevant pharmacist/admin | Get the payment for an order |
 | GET | `/payments/:id` | owner/admin | Get a payment |
-| POST | `/payments/:id/confirm` | admin | Simulate a gateway confirmation (stand-in for a real provider webhook) |
+| POST | `/payments/:id/confirm` | admin | Manual override: mark a payment paid regardless of what the gateway reports |
+| POST | `/payments/:id/verify` | owner/admin | Ask the gateway what it currently thinks the payment's status is (the realistic "check my payment" flow after a customer confirms/declines a USSD prompt) |
+| POST | `/payments/:id/retry` | owner/admin | Re-initiate a fresh gateway attempt for a `failed` payment on the same order (new provider reference) |
+| POST | `/payments/webhook/:provider` | none — HMAC-signed | Public callback endpoint a real Zaad/e-Dahab webhook would call; verified via `X-Webhook-Signature` (HMAC-SHA256 over the raw body, `ZAAD_WEBHOOK_SECRET`/`EDAHAB_WEBHOOK_SECRET`) |
+
+#### Sandbox test scenarios
+
+No real Zaad/e-Dahab merchant sandbox is available in this environment, so `checkStatus` deterministically classifies outcomes by the **last 4 digits of `payerPhone`** — the same idea as a real gateway's magic test card numbers:
+
+| Phone ending in | Outcome |
+| --- | --- |
+| `0000`, or anything unrecognized | `completed` |
+| `1111` | `failed` — `insufficient_funds` |
+| `2222` | `failed` — `timeout` |
+| `3333` | stays `processing` forever (customer never confirms the USSD prompt) |
+
+`initiate` always returns `processing` immediately (a real mobile-money request is sent to the payer's phone and awaits their confirmation); call `/payments/:id/verify` to resolve it. Cash on Delivery is unaffected — it stays `pending` until the linked delivery is marked delivered.
 
 ### Coupons
 | Method | Path | Auth | Description |
@@ -154,6 +171,7 @@ There's no public "apply coupon" endpoint — a coupon is validated as a side ef
 
 - **Checkout** computes `subtotal` from live medicine prices, a flat delivery fee waived above a free-delivery threshold, and a flat tax rate — all server-side, never trusted from the client.
 - **Prescription gating**: if any cart item has `requiresPrescription: true`, checkout requires a non-empty `prescriptionImage` (a URL string for now; actual file upload lands with Cloud Storage in a later phase).
+- **`payerPhone` is required at checkout for `zaad`/`edahab`** (validated as 7-15 digits, optional leading `+`) — mobile money payments are pushed to that phone as a USSD prompt in real life, and it also drives the sandbox test scenarios above. Not required for `cod`.
 - **Stock** is decremented on checkout and restored on cancellation. There's no multi-document transaction around this yet (mongodb doesn't get a replica set in this phase), so concurrent checkouts of the last unit of stock is a known race left for a later hardening pass.
 - **Order vs. Delivery status are two separate state machines** by design: pharmacy staff own `pending/confirmed/preparing/cancelled` via the Order API, while logistics/riders own `assigned/picked_up/in_transit/delivered` via the Delivery API. The two are bridged automatically (Delivery reaching `delivered` marks the Order `delivered` and, for COD, marks the Payment `completed`).
 

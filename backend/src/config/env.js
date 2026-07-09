@@ -33,6 +33,15 @@ const env = {
     windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
   },
+  payments: {
+    // Real merchant credentials for Zaad/e-Dahab are not available in this
+    // environment; when unset, the gateway service runs in sandbox mode
+    // (see `paymentGateway.service.js`). Webhook secrets are still required
+    // so the sandbox webhook endpoint can demonstrate real HMAC signature
+    // verification end to end.
+    zaadWebhookSecret: process.env.ZAAD_WEBHOOK_SECRET || 'dev-zaad-webhook-secret',
+    edahabWebhookSecret: process.env.EDAHAB_WEBHOOK_SECRET || 'dev-edahab-webhook-secret',
+  },
 };
 
 module.exports = env;

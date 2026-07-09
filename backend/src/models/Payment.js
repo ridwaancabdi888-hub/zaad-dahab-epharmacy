@@ -2,6 +2,16 @@ const mongoose = require('mongoose');
 
 const PAYMENT_STATUSES = ['pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'];
 
+const attemptHistorySchema = new mongoose.Schema(
+  {
+    providerReference: { type: String, required: true },
+    status: { type: String, enum: PAYMENT_STATUSES, required: true },
+    failureReason: { type: String, default: '' },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const paymentSchema = new mongoose.Schema(
   {
     order: {
@@ -38,6 +48,23 @@ const paymentSchema = new mongoose.Schema(
     providerReference: {
       type: String,
       default: '',
+    },
+    payerPhone: {
+      type: String,
+      default: '',
+    },
+    failureReason: {
+      type: String,
+      default: '',
+    },
+    attempts: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+    attemptHistory: {
+      type: [attemptHistorySchema],
+      default: [],
     },
     rawResponse: {
       type: mongoose.Schema.Types.Mixed,
