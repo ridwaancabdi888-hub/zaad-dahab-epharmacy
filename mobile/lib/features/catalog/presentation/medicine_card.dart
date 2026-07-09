@@ -10,6 +10,7 @@ import '../../cart/application/cart_controller.dart';
 import '../../wishlist/presentation/wishlist_heart_button.dart';
 import '../data/medicine_model.dart';
 import 'medicine_detail_screen.dart';
+import 'medicine_image.dart';
 
 /// Product card used on the Home "Recommended for You" strip and the
 /// Categories/Search browse grids, per DESIGN.md's "Product Cards"
@@ -42,15 +43,13 @@ class MedicineCard extends ConsumerWidget {
               aspectRatio: 1.2,
               child: Stack(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    child: Container(
                       color: AppColors.surfaceContainer,
-                      borderRadius: BorderRadius.circular(AppRadii.md),
-                    ),
-                    child: Icon(
-                      Icons.medication_outlined,
-                      color: AppColors.outline,
-                      size: 40,
+                      child: MedicineImage(
+                        imageUrl: medicine.images.isEmpty ? null : medicine.images.first,
+                      ),
                     ),
                   ),
                   Positioned(

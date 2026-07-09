@@ -13,6 +13,7 @@ import '../../cart/application/cart_controller.dart';
 import '../../wishlist/presentation/wishlist_heart_button.dart';
 import '../application/catalog_providers.dart';
 import '../data/medicine_model.dart';
+import 'medicine_image.dart';
 
 class MedicineDetailScreen extends ConsumerWidget {
   const MedicineDetailScreen({super.key, required this.medicineId});
@@ -89,12 +90,15 @@ class _MedicineDetailBodyState extends ConsumerState<_MedicineDetailBody> {
             children: [
               AspectRatio(
                 aspectRatio: 1.3,
-                child: Container(
-                  decoration: BoxDecoration(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                  child: Container(
                     color: AppColors.surfaceContainer,
-                    borderRadius: BorderRadius.circular(AppRadii.lg),
+                    child: MedicineImage(
+                      imageUrl: medicine.images.isEmpty ? null : medicine.images.first,
+                      iconSize: 72,
+                    ),
                   ),
-                  child: const Icon(Icons.medication_outlined, size: 72, color: AppColors.outline),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),

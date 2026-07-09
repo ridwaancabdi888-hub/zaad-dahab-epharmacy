@@ -89,6 +89,13 @@ async function main() {
     { name: 'Vitamins & Supplements', slug: 'vitamins-supplements', description: 'Daily vitamins and supplements.' },
   ]);
 
+  // No image upload capability exists yet (see backend/README.md), so
+  // these point at a placeholder-image generator rather than pretending
+  // to be real product photography — clearly labeled as placeholders,
+  // just there to demonstrate the mobile app's image rendering.
+  const placeholderImage = (label) =>
+    `https://placehold.co/400x400/dcf2e6/046c4a?text=${encodeURIComponent(label)}`;
+
   const medicines = await Medicine.create([
     {
       name: 'Paracetamol 500mg',
@@ -101,6 +108,7 @@ async function main() {
       stock: 120,
       requiresPrescription: false,
       tags: ['pain', 'fever'],
+      images: [placeholderImage('Paracetamol')],
     },
     {
       name: 'Ibuprofen 200mg',
@@ -114,6 +122,7 @@ async function main() {
       stock: 80,
       requiresPrescription: false,
       tags: ['pain', 'inflammation'],
+      images: [placeholderImage('Ibuprofen')],
     },
     {
       name: 'Vitamin C 1000mg',
@@ -126,6 +135,7 @@ async function main() {
       stock: 200,
       requiresPrescription: false,
       tags: ['immune', 'vitamin'],
+      images: [placeholderImage('Vitamin+C')],
     },
     {
       name: 'Multivitamin Daily',
@@ -135,6 +145,7 @@ async function main() {
       manufacturer: 'NutriLife',
       unit: '90 Capsules',
       price: 12.5,
+      images: [placeholderImage('Multivitamin')],
       stock: 60,
       requiresPrescription: false,
       tags: ['vitamin', 'daily'],
