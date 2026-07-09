@@ -10,10 +10,14 @@ import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/cart/presentation/cart_screen.dart';
 import '../../features/categories/presentation/categories_screen.dart';
+import '../../features/delivery/presentation/rider_completed_deliveries_screen.dart';
+import '../../features/delivery/presentation/rider_deliveries_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/shell/main_shell.dart';
+import '../../features/shell/rider_shell.dart';
 import '../../features/splash/splash_screen.dart';
 import 'route_paths.dart';
 
@@ -74,6 +78,43 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) => RiderShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.riderDeliveries,
+                builder: (context, state) => const RiderDeliveriesScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.riderCompleted,
+                builder: (context, state) => const RiderCompletedDeliveriesScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.riderNotifications,
+                builder: (context, state) => const NotificationsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.riderProfile,
+                builder: (context, state) => const ProfileScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
     ],
   );
 });
@@ -107,10 +148,24 @@ class _RouterRefreshNotifier extends ChangeNotifier {
       return RoutePaths.publicRoutes.contains(location) ? null : RoutePaths.login;
     }
 
-    // Authenticated: never let the user land back on splash/onboarding/auth.
+    // Authenticated: send riders to their own shell (Active/Completed/
+    // Alerts/Profile) instead of the customer shopping shell, and never
+    // let the user land back on splash/onboarding/auth.
+    final isRider = authState.user?.role == 'rider';
+    final riderHome = RoutePaths.riderDeliveries;
     final isSplashOrPublic =
         location == RoutePaths.splash || RoutePaths.publicRoutes.contains(location);
-    return isSplashOrPublic ? RoutePaths.home : null;
+
+    if (isSplashOrPublic) {
+      return isRider ? riderHome : RoutePaths.home;
+    }
+    if (isRider && !location.startsWith('/rider')) {
+      return riderHome;
+    }
+    if (!isRider && location.startsWith('/rider')) {
+      return RoutePaths.home;
+    }
+    return null;
   }
 
   @override

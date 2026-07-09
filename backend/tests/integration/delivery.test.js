@@ -78,6 +78,35 @@ describe('Delivery API', () => {
     expect(rightRiderRes.status).toBe(200);
   });
 
+  it('lets the assigned rider fetch the delivery by id and by order id', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const stranger = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { order, delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    const byIdRes = await request(app)
+      .get(`/api/v1/deliveries/${delivery._id}`)
+      .set('Authorization', `Bearer ${rider.accessToken}`);
+    expect(byIdRes.status).toBe(200);
+
+    const byOrderRes = await request(app)
+      .get(`/api/v1/deliveries/order/${order._id}`)
+      .set('Authorization', `Bearer ${rider.accessToken}`);
+    expect(byOrderRes.status).toBe(200);
+
+    const strangerRes = await request(app)
+      .get(`/api/v1/deliveries/${delivery._id}`)
+      .set('Authorization', `Bearer ${stranger.accessToken}`);
+    expect(strangerRes.status).toBe(403);
+  });
+
   it('rejects invalid delivery status transitions', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();
@@ -173,5 +202,281 @@ describe('Delivery API', () => {
       .get('/api/v1/deliveries')
       .set('Authorization', `Bearer ${otherRider.accessToken}`);
     expect(otherRiderList.body.data.items).toHaveLength(0);
+  });
+});
+
+describe('Delivery API — estimated time and notifications', () => {
+  const addressWithCoords = {
+    street: '45 Wellness Ave',
+    city: 'Mogadishu',
+    lat: 2.0469,
+    lng: 45.3182,
+  };
+
+  async function checkoutWithCoords(customerToken, medicineId) {
+    await request(app)
+      .post('/api/v1/cart/items')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ medicineId, quantity: 1 });
+
+    const res = await request(app)
+      .post('/api/v1/orders')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ deliveryAddress: addressWithCoords, paymentMethod: 'cod' });
+
+    return res.body.data;
+  }
+
+  it('computes an estimated delivery window once the rider location and destination are both known', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { delivery } = await checkoutWithCoords(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    // A few km away from the destination.
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/location`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ lat: 2.06, lng: 45.33 });
+
+    const pickedUpRes = await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'picked_up' });
+
+    expect(pickedUpRes.status).toBe(200);
+    expect(pickedUpRes.body.data.estimatedDeliveryStart).not.toBeNull();
+    expect(pickedUpRes.body.data.estimatedDeliveryEnd).not.toBeNull();
+    expect(new Date(pickedUpRes.body.data.estimatedDeliveryEnd).getTime()).toBeGreaterThan(
+      new Date(pickedUpRes.body.data.estimatedDeliveryStart).getTime(),
+    );
+  });
+
+  it('refreshes the ETA as the rider location updates while in transit', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { delivery } = await checkoutWithCoords(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/location`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ lat: 2.1, lng: 45.4 });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'picked_up' });
+
+    const farRes = await request(app)
+      .get(`/api/v1/deliveries/${delivery._id}`)
+      .set('Authorization', `Bearer ${rider.accessToken}`);
+    const farEstimate = new Date(farRes.body.data.estimatedDeliveryEnd).getTime();
+
+    // Move much closer to the destination — the new ETA should be sooner.
+    const closeRes = await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/location`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ lat: 2.047, lng: 45.319 });
+    const closeEstimate = new Date(closeRes.body.data.estimatedDeliveryEnd).getTime();
+
+    expect(closeEstimate).toBeLessThan(farEstimate);
+  });
+
+  it('clears the ETA once the order is delivered', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { delivery } = await checkoutWithCoords(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/location`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ lat: 2.06, lng: 45.33 });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'picked_up' });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'in_transit' });
+    const deliveredRes = await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'delivered' });
+
+    expect(deliveredRes.body.data.estimatedDeliveryStart).toBeNull();
+    expect(deliveredRes.body.data.estimatedDeliveryEnd).toBeNull();
+  });
+
+  it('leaves the ETA unset when the delivery address has no coordinates', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    // Default `checkoutOrder` helper above uses an address with no lat/lng.
+    const { delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/location`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ lat: 2.06, lng: 45.33 });
+    const res = await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'picked_up' });
+
+    expect(res.body.data.estimatedDeliveryStart).toBeNull();
+  });
+
+  it('creates a notification for each delivery status change', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { order, delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'picked_up' });
+
+    const notificationsRes = await request(app)
+      .get('/api/v1/notifications/me')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+
+    expect(notificationsRes.status).toBe(200);
+    const titles = notificationsRes.body.data.items.map((n) => n.title);
+    expect(titles).toContain('Rider assigned');
+    expect(titles).toContain('Order picked up');
+    expect(notificationsRes.body.data.items[0].message).toContain(order.orderNumber);
+    expect(notificationsRes.body.data.unreadCount).toBe(2);
+  });
+
+  it('creates a notification when an order is cancelled', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { order } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/orders/${order._id}/cancel`)
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+
+    const res = await request(app)
+      .get('/api/v1/notifications/me')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+
+    expect(res.body.data.items.some((n) => n.title === 'Order cancelled')).toBe(true);
+  });
+});
+
+describe('Notifications API', () => {
+  it('requires authentication', async () => {
+    const res = await request(app).get('/api/v1/notifications/me');
+    expect(res.status).toBe(401);
+  });
+
+  it('marks a single notification as read', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    const listRes = await request(app)
+      .get('/api/v1/notifications/me')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    const notificationId = listRes.body.data.items[0]._id;
+
+    const markRes = await request(app)
+      .patch(`/api/v1/notifications/${notificationId}/read`)
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(markRes.status).toBe(200);
+    expect(markRes.body.data.isRead).toBe(true);
+
+    const countRes = await request(app)
+      .get('/api/v1/notifications/me/unread-count')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(countRes.body.data.count).toBe(0);
+  });
+
+  it('marks all notifications as read', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${rider.accessToken}`)
+      .send({ status: 'picked_up' });
+
+    await request(app)
+      .patch('/api/v1/notifications/read-all')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+
+    const countRes = await request(app)
+      .get('/api/v1/notifications/me/unread-count')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    expect(countRes.body.data.count).toBe(0);
+  });
+
+  it('forbids marking another user’s notification as read', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const stranger = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    const listRes = await request(app)
+      .get('/api/v1/notifications/me')
+      .set('Authorization', `Bearer ${customer.accessToken}`);
+    const notificationId = listRes.body.data.items[0]._id;
+
+    const res = await request(app)
+      .patch(`/api/v1/notifications/${notificationId}/read`)
+      .set('Authorization', `Bearer ${stranger.accessToken}`);
+    expect(res.status).toBe(403);
   });
 });

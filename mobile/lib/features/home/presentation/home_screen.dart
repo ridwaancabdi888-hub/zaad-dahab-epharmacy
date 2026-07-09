@@ -13,6 +13,8 @@ import '../../../core/widgets/section_header.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../catalog/application/catalog_providers.dart';
 import '../../catalog/presentation/medicine_card.dart';
+import '../../notifications/application/notification_providers.dart';
+import '../../notifications/presentation/notifications_screen.dart';
 import '../../search/presentation/search_screen.dart';
 import '../../wishlist/presentation/wishlist_screen.dart';
 import 'category_icon_button.dart';
@@ -25,6 +27,7 @@ class HomeScreen extends ConsumerWidget {
     final userName = ref.watch(authControllerProvider).user?.name.split(' ').first ?? 'there';
     final categoriesAsync = ref.watch(categoriesProvider);
     final recommendedAsync = ref.watch(recommendedMedicinesProvider);
+    final unreadCount = ref.watch(unreadNotificationCountProvider).valueOrNull ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -38,11 +41,37 @@ class HomeScreen extends ConsumerWidget {
               MaterialPageRoute(builder: (_) => const WishlistScreen()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No new notifications')),
-            ),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none),
+                tooltip: 'Notifications',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                ),
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(AppRadii.full),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    child: Text(
+                      '$unreadCount',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Colors.white, fontSize: 10),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

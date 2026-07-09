@@ -5,6 +5,7 @@ const Medicine = require('../models/Medicine');
 const cartService = require('./cart.service');
 const couponService = require('./coupon.service');
 const paymentGateway = require('./paymentGateway.service');
+const notificationService = require('./notification.service');
 const ApiError = require('../utils/ApiError');
 const generateOrderNumber = require('../utils/generateOrderNumber');
 const { parsePagination, buildMeta } = require('../utils/pagination');
@@ -288,6 +289,8 @@ async function cancel(id, actingUser) {
     delivery.statusHistory.push({ status: 'cancelled' });
     await delivery.save();
   }
+
+  await notificationService.notifyOrderCancelled(order);
 
   return order;
 }

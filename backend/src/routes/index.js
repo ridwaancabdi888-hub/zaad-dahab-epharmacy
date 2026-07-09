@@ -10,6 +10,7 @@ const orderRoutes = require('./order.routes');
 const paymentRoutes = require('./payment.routes');
 const deliveryRoutes = require('./delivery.routes');
 const couponRoutes = require('./coupon.routes');
+const notificationRoutes = require('./notification.routes');
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/deliveries', deliveryRoutes);
 router.use('/coupons', couponRoutes);
+router.use('/notifications', notificationRoutes);
 
 module.exports = router;

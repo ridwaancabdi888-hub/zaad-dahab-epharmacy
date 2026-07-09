@@ -13,6 +13,11 @@ abstract final class RoutePaths {
   static const cart = '/cart';
   static const profile = '/profile';
 
+  static const riderDeliveries = '/rider/deliveries';
+  static const riderCompleted = '/rider/completed';
+  static const riderNotifications = '/rider/notifications';
+  static const riderProfile = '/rider/profile';
+
   static const publicRoutes = {
     login,
     register,

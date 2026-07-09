@@ -7,6 +7,7 @@ import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_indicator.dart';
 import '../../../core/widgets/responsive_center.dart';
 import '../../checkout/application/checkout_controller.dart';
+import '../../delivery/presentation/delivery_tracking_section.dart';
 import '../../payments/application/payment_providers.dart';
 import '../../payments/presentation/payment_status_card.dart';
 import '../data/order_model.dart';
@@ -61,6 +62,8 @@ class OrderDetailScreen extends ConsumerWidget {
                   '${order.deliveryAddress.city}',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                DeliveryTrackingSection(orderId: orderId),
                 const SizedBox(height: AppSpacing.lg),
                 ref.watch(paymentByOrderIdProvider(orderId)).when(
                       data: (payment) => PaymentStatusCard(

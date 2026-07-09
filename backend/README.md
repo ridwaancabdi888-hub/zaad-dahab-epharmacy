@@ -13,12 +13,13 @@ REST API for the Zaad/e-Dahab E-Pharmacy platform. Node.js + Express + MongoDB (
 - **Cart**: one cart per user, live-priced against current medicine data, stock-aware
 - **Orders**: cart checkout with server-computed subtotal/delivery fee/tax/total, stock decrement, role-scoped listing (customer/pharmacist/admin), a bounded manual status state machine (`pending → confirmed → preparing`), and cancellation with automatic restock + payment/delivery cascade
 - **Payments**: a pluggable gateway abstraction (`zaad`, `edahab`, `cod`) backed by clearly-labeled sandbox mocks until real merchant credentials are supplied — same `{ initiate, checkStatus }` interface a real integration would implement. Includes deterministic sandbox test scenarios (magic payer-phone suffixes), self-service payment status verification, retry for failed payments, an HMAC-signed webhook endpoint for async provider callbacks, and per-user transaction history
-- **Deliveries**: rider assignment, a rider-driven status state machine (`pending → assigned → picked_up → in_transit → delivered`), live location updates, and cascading effects into the linked order/payment (e.g. a delivered COD delivery auto-completes its payment)
+- **Deliveries**: rider assignment, a rider-driven status state machine (`pending → assigned → picked_up → in_transit → delivered`), live location updates, cascading effects into the linked order/payment (e.g. a delivered COD delivery auto-completes its payment), and a server-computed estimated delivery window that refreshes every time the rider's location or status changes
+- **Notifications**: real, persisted in-app notifications (not push — no Firebase project is configured) created automatically on every delivery status change and order cancellation, with per-user history and read/unread state
 - Centralized error handling, request validation, rate limiting on auth routes, security headers (helmet), CORS, body sanitization against NoSQL operator injection
 - Structured logging (winston/morgan)
 - Full integration + unit test suite (Jest + Supertest + mongodb-memory-server — a real in-memory MongoDB engine, not mocks)
 
-Not yet built: the Flutter mobile app, the React admin panel, real Zaad/e-Dahab merchant integration, Firebase notifications, Google Maps live tracking, and file/image upload (prescription images and product photos are plain URL strings for now).
+Not yet built: the React admin panel, real Zaad/e-Dahab merchant integration, real push notifications (FCM), and file/image upload (prescription images and product photos are plain URL strings for now). Google Maps live tracking is implemented on the mobile side with a graceful fallback when no API key is configured — see `mobile/README.md`.
 
 ## Getting started
 
@@ -161,11 +162,25 @@ There's no public "apply coupon" endpoint — a coupon is validated as a side ef
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/deliveries` | admin/rider | List deliveries (rider sees only their own assignments) |
-| GET | `/deliveries/order/:orderId` | owner/relevant pharmacist/admin | Get the delivery for an order |
+| GET | `/deliveries/order/:orderId` | owner/assigned rider/relevant pharmacist/admin | Get the delivery for an order |
 | GET | `/deliveries/:id` | owner/assigned rider/admin | Get a delivery |
 | PATCH | `/deliveries/:id/assign` | admin | Assign a rider |
-| PATCH | `/deliveries/:id/status` | assigned rider/admin | Progress `assigned→picked_up→in_transit→delivered` (or `cancelled`) |
-| PATCH | `/deliveries/:id/location` | assigned rider/admin | Update live `lat`/`lng` (placeholder ahead of real Google Maps tracking) |
+| PATCH | `/deliveries/:id/status` | assigned rider/admin | Progress `assigned→picked_up→in_transit→delivered` (or `cancelled`); recomputes the ETA on every in-flight transition |
+| PATCH | `/deliveries/:id/location` | assigned rider/admin | Update live `lat`/`lng`; recomputes the ETA while `picked_up`/`in_transit` |
+
+`estimatedDeliveryStart`/`estimatedDeliveryEnd` on a delivery are only set once **both** the rider's `currentLocation` and the order's `deliveryAddress` have coordinates — computed from straight-line (haversine) distance at an assumed average urban delivery speed (`src/utils/geo.js`), not real traffic data. They're cleared once the delivery is `delivered`.
+
+Every delivery response also populates its `order` field with `orderNumber`, `total`, `paymentMethod`, `status`, `items` and the customer's `user.name`/`user.phone` — enough for the rider app to show order context without a separate, and separately-authorized, call to `GET /orders/:id` (a rider isn't otherwise allowed to fetch an order directly, since order-level access control only considers the order's owner/pharmacist/admin, not the assigned rider).
+
+### Notifications
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/notifications/me` | Bearer | The current user's notifications (paginated), plus an `unreadCount` |
+| GET | `/notifications/me/unread-count` | Bearer | Just the unread count (for a badge) |
+| PATCH | `/notifications/:id/read` | owner | Mark one notification as read |
+| PATCH | `/notifications/read-all` | Bearer | Mark all of the current user's notifications as read |
+
+A notification is created automatically for the order's customer on every delivery status change (`assigned`, `picked_up`, `in_transit`, `delivered`, `cancelled`) and on order cancellation. This is real, persisted, polled-for data — not a stand-in for push notifications, which would need a Firebase project this environment doesn't have.
 
 ## Business rules worth knowing
 
@@ -180,7 +195,7 @@ There's no public "apply coupon" endpoint — a coupon is validated as a side ef
 ```
 src/
   config/      environment loading, MongoDB connection, logger
-  models/      Mongoose schemas (User, RefreshToken, Pharmacy, Category, Medicine, Cart, Order, Payment, Delivery)
+  models/      Mongoose schemas (User, RefreshToken, Pharmacy, Category, Medicine, Cart, Order, Payment, Delivery, Coupon, Notification)
   services/    business logic per resource, plus the pluggable payment gateway
   controllers/ thin HTTP handlers, delegate to services
   routes/      Express routers
