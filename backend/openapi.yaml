@@ -1636,6 +1636,7 @@ components:
             deliveredOrders: { type: integer }
             cancelledOrders: { type: integer }
             revenue: { type: number, description: Sum of order totals, excluding cancelled orders. }
+            revenueToday: { type: number, description: Same, but only orders placed today (UTC). }
         ordersByStatus:
           type: array
           items:

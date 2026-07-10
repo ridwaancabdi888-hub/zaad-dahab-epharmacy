@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ordersApi } from '../api/resources';
+import { deliveriesApi, ordersApi, usersApi } from '../api/resources';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import Spinner from '../components/ui/Spinner';
 import ErrorBanner from '../components/ui/ErrorBanner';
@@ -25,11 +25,27 @@ const NEXT_STATUS = {
   confirmed: 'preparing',
 };
 
+const DELIVERY_STATUS_VARIANT = {
+  pending: 'neutral',
+  assigned: 'info',
+  picked_up: 'info',
+  in_transit: 'primary',
+  delivered: 'success',
+  cancelled: 'error',
+};
+
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selected, setSelected] = useState(null);
   const [isWorking, setIsWorking] = useState(false);
   const [actionError, setActionError] = useState(null);
+
+  const [delivery, setDelivery] = useState(null);
+  const [isDeliveryLoading, setIsDeliveryLoading] = useState(false);
+  const [deliveryError, setDeliveryError] = useState(null);
+  const [riders, setRiders] = useState([]);
+  const [riderChoice, setRiderChoice] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
 
   const filters = useMemo(() => ({ status: statusFilter || undefined }), [statusFilter]);
   const { items, meta, setPage, isLoading, error, refresh } = usePaginatedList(
@@ -37,14 +53,50 @@ export default function OrdersPage() {
     { filters },
   );
 
+  const loadDelivery = async (orderId) => {
+    setIsDeliveryLoading(true);
+    setDeliveryError(null);
+    try {
+      const [deliveryResult, ridersResult] = await Promise.all([
+        deliveriesApi.getByOrderId(orderId),
+        usersApi.list({ role: 'rider', limit: 100 }),
+      ]);
+      setDelivery(deliveryResult);
+      setRiders(ridersResult.items);
+    } catch (err) {
+      setDelivery(null);
+      setDeliveryError(err);
+    } finally {
+      setIsDeliveryLoading(false);
+    }
+  };
+
   const openDetail = async (order) => {
     setActionError(null);
     setSelected(order);
+    setDelivery(null);
+    setRiderChoice('');
+    loadDelivery(order._id);
     try {
       const full = await ordersApi.getById(order._id);
       setSelected(full);
     } catch (err) {
       setActionError(err.message);
+    }
+  };
+
+  const assignRider = async () => {
+    if (!riderChoice) return;
+    setIsAssigning(true);
+    setDeliveryError(null);
+    try {
+      const updated = await deliveriesApi.assign(delivery._id, riderChoice);
+      setDelivery(updated);
+      setRiderChoice('');
+    } catch (err) {
+      setDeliveryError(err);
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -171,6 +223,94 @@ export default function OrdersPage() {
           <p className="text-muted" style={{ fontSize: 14 }}>
             {selected.deliveryAddress?.label} — {selected.deliveryAddress?.street}, {selected.deliveryAddress?.city}
           </p>
+
+          <h4 className="mt-md">Delivery &amp; Rider</h4>
+          {isDeliveryLoading ? (
+            <Spinner />
+          ) : deliveryError ? (
+            <ErrorBanner error={deliveryError} onRetry={() => loadDelivery(selected._id)} />
+          ) : !delivery ? (
+            <p className="text-muted" style={{ fontSize: 14 }}>No delivery record for this order.</p>
+          ) : (
+            <div style={{ fontSize: 14 }}>
+              <div className="flex-between" style={{ marginBottom: 8 }}>
+                <span>Status</span>
+                <Badge variant={DELIVERY_STATUS_VARIANT[delivery.status]}>{titleCase(delivery.status)}</Badge>
+              </div>
+
+              {delivery.rider ? (
+                <div className="flex-between" style={{ marginBottom: 8 }}>
+                  <span>Rider</span>
+                  <span>
+                    {delivery.rider.name}
+                    {delivery.rider.phone ? ` • ${delivery.rider.phone}` : ''}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <select
+                    className="search-input"
+                    style={{ flex: 1 }}
+                    value={riderChoice}
+                    onChange={(e) => setRiderChoice(e.target.value)}
+                  >
+                    <option value="">Select a rider…</option>
+                    {riders.map((rider) => (
+                      <option key={rider._id} value={rider._id}>
+                        {rider.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={!riderChoice || isAssigning}
+                    onClick={assignRider}
+                  >
+                    {isAssigning ? 'Assigning…' : 'Assign Rider'}
+                  </button>
+                </div>
+              )}
+              {!delivery.rider && riders.length === 0 && (
+                <p className="text-muted" style={{ fontSize: 12.5, marginTop: -4, marginBottom: 8 }}>
+                  No riders exist yet — create one from Role Management.
+                </p>
+              )}
+
+              {delivery.estimatedDeliveryStart && (
+                <div className="flex-between" style={{ marginBottom: 8 }}>
+                  <span>Estimated arrival</span>
+                  <span>
+                    {formatDate(delivery.estimatedDeliveryStart)} – {formatDate(delivery.estimatedDeliveryEnd)}
+                  </span>
+                </div>
+              )}
+
+              {delivery.currentLocation?.lat != null && (
+                <div className="flex-between" style={{ marginBottom: 8 }}>
+                  <span>Rider location</span>
+                  <span>
+                    {delivery.currentLocation.lat.toFixed(4)}, {delivery.currentLocation.lng.toFixed(4)}
+                    <span className="text-muted"> ({formatDate(delivery.currentLocation.updatedAt)})</span>
+                  </span>
+                </div>
+              )}
+
+              {delivery.statusHistory?.length > 0 && (
+                <>
+                  <div className="text-muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 4 }}>
+                    Status history
+                  </div>
+                  {delivery.statusHistory.map((entry, index) => (
+                    <div key={index} className="flex-between" style={{ fontSize: 13, padding: '2px 0' }}>
+                      <span>{titleCase(entry.status)}</span>
+                      <span className="text-muted">{formatDate(entry.at)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
 
           <h4 className="mt-md">Totals</h4>
           <div style={{ fontSize: 14 }}>

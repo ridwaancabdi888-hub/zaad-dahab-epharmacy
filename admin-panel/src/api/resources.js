@@ -31,6 +31,11 @@ export const ordersApi = {
   cancel: (id) => apiClient.patch(`/orders/${id}/cancel`),
 };
 
+export const deliveriesApi = {
+  getByOrderId: (orderId) => apiClient.get(`/deliveries/order/${orderId}`),
+  assign: (id, riderId) => apiClient.patch(`/deliveries/${id}/assign`, { riderId }),
+};
+
 export const usersApi = {
   list: ({ page, limit, role }) => apiClient.get('/users', { page, limit, role }),
   getById: (id) => apiClient.get(`/users/${id}`),

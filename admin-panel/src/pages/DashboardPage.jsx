@@ -61,7 +61,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="stat-grid">
-        <StatCard label="Revenue" value={formatCurrency(totals.revenue)} hint={`${totals.orders} orders total`} />
+        <StatCard label="Revenue Today" value={formatCurrency(totals.revenueToday)} hint="Orders placed today (UTC)" />
+        <StatCard label="Revenue (All Time)" value={formatCurrency(totals.revenue)} hint={`${totals.orders} orders total`} />
         <StatCard label="Delivered Orders" value={totals.deliveredOrders} hint={`${totals.cancelledOrders} cancelled`} />
         <StatCard label="Customers" value={totals.customers} hint={`${totals.riders} riders · ${totals.pharmacists} pharmacists`} />
         <StatCard label="Medicines" value={totals.medicines} hint={`${totals.categories} categories · ${totals.pharmacies} pharmacies`} />

@@ -147,6 +147,9 @@ async function dashboard() {
       deliveredOrders,
       cancelledOrders,
       revenue,
+      // The last entry of `revenueByDay` is always today (UTC) — see that
+      // function's doc comment — so no extra query is needed here.
+      revenueToday: revenueSeries[revenueSeries.length - 1].revenue,
     },
     ordersByStatus,
     revenueByDay: revenueSeries,

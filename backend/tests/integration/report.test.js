@@ -43,6 +43,10 @@ describe('Reports API (admin dashboard)', () => {
     expect(report.totals.medicines).toBeGreaterThanOrEqual(1);
     expect(report.totals.orders).toBeGreaterThanOrEqual(1);
     expect(report.totals.revenue).toBeGreaterThanOrEqual(order.total);
+    // Today's revenue is a subset of all-time revenue and must include
+    // the order just placed (it was placed today).
+    expect(report.totals.revenueToday).toBeGreaterThanOrEqual(order.total);
+    expect(report.totals.revenueToday).toBeLessThanOrEqual(report.totals.revenue);
 
     expect(Array.isArray(report.ordersByStatus)).toBe(true);
     expect(report.ordersByStatus.some((row) => row.status === 'pending')).toBe(true);
