@@ -88,15 +88,9 @@ class HomeScreen extends ConsumerWidget {
                 vertical: AppSpacing.md,
               ),
               children: [
-                Text('Hi, $userName 👋', style: Theme.of(context).textTheme.headlineLarge),
-                const SizedBox(height: 4),
-                Text(
-                  'Browse curated healthcare and wellness essentials',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _SearchBar(
-                  onTap: () => Navigator.of(context).push(
+                _HeroBand(
+                  userName: userName,
+                  onSearchTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SearchScreen()),
                   ),
                 ),
@@ -166,6 +160,49 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A soft emerald/teal gradient band framing the greeting and search bar —
+/// gives the brand's green a stronger, more welcoming presence right at
+/// the top of Home, instead of only showing up in small accents further
+/// down the page.
+class _HeroBand extends StatelessWidget {
+  const _HeroBand({required this.userName, required this.onSearchTap});
+
+  final String userName;
+  final VoidCallback onSearchTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryContainer.withValues(alpha: 0.16),
+            AppColors.secondaryContainer.withValues(alpha: 0.28),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+        border: Border.all(color: AppColors.primaryContainer.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Hi, $userName 👋', style: Theme.of(context).textTheme.headlineLarge),
+          const SizedBox(height: 4),
+          Text(
+            'Browse curated healthcare and wellness essentials',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _SearchBar(onTap: onSearchTap),
+        ],
       ),
     );
   }

@@ -58,8 +58,8 @@ class CategoriesScreen extends ConsumerWidget {
                             return _CategoryCard(
                               category: category,
                               tint: index.isEven
-                                  ? AppColors.secondaryContainer
-                                  : AppColors.tertiaryContainer,
+                                  ? AppColors.primaryContainer
+                                  : AppColors.secondaryContainer,
                               onTap: () => Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => MedicineListPage(

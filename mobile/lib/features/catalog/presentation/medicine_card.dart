@@ -39,16 +39,23 @@ class MedicineCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: 1.2,
+            // Expanded (not a fixed AspectRatio) so the image absorbs
+            // whatever height is left after the text below it — the grid
+            // this card sits in uses a fixed childAspectRatio, so a rigid
+            // image height here risks overflowing when the two-line name
+            // wraps (see empty_state_test.dart for the project's last
+            // overflow incident and why this pattern is now preferred).
+            Expanded(
               child: Stack(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                    child: Container(
-                      color: AppColors.surfaceContainer,
-                      child: MedicineImage(
-                        imageUrl: medicine.images.isEmpty ? null : medicine.images.first,
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      child: Container(
+                        color: AppColors.inStockBackground,
+                        child: MedicineImage(
+                          imageUrl: medicine.images.isEmpty ? null : medicine.images.first,
+                        ),
                       ),
                     ),
                   ),
@@ -83,11 +90,12 @@ class MedicineCard extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xs),
             Text(
               medicine.name,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w600,
+                    height: 1.2,
                   ),
             ),
             Text(
@@ -100,12 +108,20 @@ class MedicineCard extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '\$${medicine.effectivePrice.toStringAsFixed(2)}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
+                // Flexible, not a bare Text: at narrow card widths (the
+                // grid this card sits in gives it as little as ~144px of
+                // content width) a longer price plus the 32px add button
+                // can overflow — this shrinks/ellipsizes instead of
+                // throwing a RenderFlex error.
+                Flexible(
+                  child: Text(
+                    '\$${medicine.effectivePrice.toStringAsFixed(2)}',
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyLarge
+                        ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
+                  ),
                 ),
                 _AddButton(medicine: medicine),
               ],
