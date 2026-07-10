@@ -12,6 +12,7 @@ class NotificationModel {
     required this.isRead,
     required this.createdAt,
     this.orderId,
+    this.deliveryId,
     this.readAt,
   });
 
@@ -21,11 +22,19 @@ class NotificationModel {
   final String message;
   final bool isRead;
   final String? orderId;
+  final String? deliveryId;
   final DateTime? readAt;
   final DateTime createdAt;
 
+  /// A `rider_assigned` notification points a rider at their own delivery
+  /// detail screen rather than the customer-oriented order detail screen
+  /// (a rider isn't authorized to fetch an order directly — see
+  /// `backend/README.md`'s "Deliveries" section).
+  bool get opensDeliveryDetail => type == 'rider_assigned' && deliveryId != null;
+
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     final order = json['order'];
+    final delivery = json['delivery'];
     return NotificationModel(
       id: json['_id'] as String,
       type: json['type'] as String,
@@ -33,6 +42,7 @@ class NotificationModel {
       message: json['message'] as String,
       isRead: json['isRead'] as bool? ?? false,
       orderId: order is Map ? order['_id'] as String? : order as String?,
+      deliveryId: delivery is Map ? delivery['_id'] as String? : delivery as String?,
       readAt: json['readAt'] != null ? DateTime.parse(json['readAt'] as String) : null,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
@@ -46,6 +56,7 @@ class NotificationModel {
       message: message,
       isRead: isRead ?? this.isRead,
       orderId: orderId,
+      deliveryId: deliveryId,
       readAt: readAt ?? this.readAt,
       createdAt: createdAt,
     );

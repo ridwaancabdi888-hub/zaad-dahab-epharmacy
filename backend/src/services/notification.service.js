@@ -47,6 +47,30 @@ async function notifyDeliveryStatus(order, delivery, status) {
   });
 }
 
+/**
+ * Alerts the assigned rider directly — separate from `notifyDeliveryStatus`,
+ * which only ever notifies the customer. Without this, a rider had no way
+ * to learn about a new assignment short of manually refreshing their
+ * Active Deliveries list. Bakes the customer name and delivery address
+ * into the message itself so the alert is useful without tapping through.
+ */
+async function notifyRiderAssigned(rider, order, delivery) {
+  if (!rider || !order) return null;
+
+  const customerName = order.user?.name || 'the customer';
+  const address = delivery.address;
+  const addressLine = address ? `${address.street}, ${address.city}` : 'the delivery address';
+
+  return Notification.create({
+    user: rider._id,
+    order: order._id,
+    delivery: delivery._id,
+    type: 'rider_assigned',
+    title: 'New delivery assigned',
+    message: `Pick up order #${order.orderNumber} for ${customerName} — deliver to ${addressLine}.`,
+  });
+}
+
 async function notifyOrderCancelled(order) {
   if (!order) return null;
   return Notification.create({
@@ -102,6 +126,7 @@ async function markAllRead(userId) {
 
 module.exports = {
   notifyDeliveryStatus,
+  notifyRiderAssigned,
   notifyOrderCancelled,
   listMine,
   unreadCount,

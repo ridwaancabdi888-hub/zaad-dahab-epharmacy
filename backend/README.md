@@ -234,7 +234,7 @@ Every delivery response also populates its `order` field with `orderNumber`, `to
 | PATCH | `/notifications/:id/read` | owner | Mark one notification as read |
 | PATCH | `/notifications/read-all` | Bearer | Mark all of the current user's notifications as read |
 
-A notification is created automatically for the order's customer on every delivery status change (`assigned`, `picked_up`, `in_transit`, `delivered`, `cancelled`) and on order cancellation. This is real, persisted, polled-for data — not a stand-in for push notifications, which would need a Firebase project this environment doesn't have.
+A notification is created automatically for the order's customer on every delivery status change (`assigned`, `picked_up`, `in_transit`, `delivered`, `cancelled`) and on order cancellation. **Separately**, when a delivery is assigned, the assigned rider gets their own `rider_assigned` notification — with the customer's name and delivery address baked into the message — since without it a rider had no way to learn about a new assignment short of manually refreshing their deliveries list. This is real, persisted, polled-for data — not a stand-in for push notifications, which would need a Firebase project this environment doesn't have.
 
 ### Reports
 | Method | Path | Auth | Description |

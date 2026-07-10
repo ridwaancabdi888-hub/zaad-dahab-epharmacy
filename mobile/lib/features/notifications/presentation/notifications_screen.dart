@@ -7,6 +7,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_indicator.dart';
 import '../../../core/widgets/responsive_center.dart';
+import '../../delivery/presentation/rider_delivery_detail_screen.dart';
 import '../../orders/presentation/order_detail_screen.dart';
 import '../application/notification_providers.dart';
 import '../data/notification_model.dart';
@@ -115,8 +116,11 @@ class _NotificationTile extends ConsumerWidget {
 
   final NotificationModel notification;
 
-  IconData get _icon =>
-      notification.type == 'order_cancelled' ? Icons.cancel_outlined : Icons.local_shipping_outlined;
+  IconData get _icon => switch (notification.type) {
+        'order_cancelled' => Icons.cancel_outlined,
+        'rider_assigned' => Icons.local_shipping,
+        _ => Icons.local_shipping_outlined,
+      };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -126,7 +130,14 @@ class _NotificationTile extends ConsumerWidget {
         if (!notification.isRead) {
           await ref.read(notificationsProvider.notifier).markRead(notification.id);
         }
-        if (notification.orderId != null && context.mounted) {
+        if (!context.mounted) return;
+        if (notification.opensDeliveryDetail) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => RiderDeliveryDetailScreen(deliveryId: notification.deliveryId!),
+            ),
+          );
+        } else if (notification.orderId != null) {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: notification.orderId!)),
           );

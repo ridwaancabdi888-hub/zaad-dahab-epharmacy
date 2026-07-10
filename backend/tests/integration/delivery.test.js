@@ -377,6 +377,38 @@ describe('Delivery API — estimated time and notifications', () => {
     expect(notificationsRes.body.data.unreadCount).toBe(2);
   });
 
+  it('alerts the assigned rider directly, with the customer name and address in the message', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser({ name: 'Hodan Customer' });
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { order, delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    const riderNotificationsRes = await request(app)
+      .get('/api/v1/notifications/me')
+      .set('Authorization', `Bearer ${rider.accessToken}`);
+
+    expect(riderNotificationsRes.status).toBe(200);
+    const riderNotification = riderNotificationsRes.body.data.items.find(
+      (n) => n.type === 'rider_assigned',
+    );
+    expect(riderNotification).toBeDefined();
+    expect(riderNotification.message).toContain(order.orderNumber);
+    expect(riderNotification.message).toContain('Hodan Customer');
+    expect(riderNotification.message).toContain(address.street);
+
+    // The customer's own "Rider assigned" notification is separate and
+    // still only sent to the customer, never leaked into the rider's list.
+    expect(
+      riderNotificationsRes.body.data.items.some((n) => n.type === 'delivery_status'),
+    ).toBe(false);
+  });
+
   it('creates a notification when an order is cancelled', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();

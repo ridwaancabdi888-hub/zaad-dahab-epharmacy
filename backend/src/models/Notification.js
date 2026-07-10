@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const NOTIFICATION_TYPES = ['delivery_status', 'order_cancelled'];
+const NOTIFICATION_TYPES = ['delivery_status', 'order_cancelled', 'rider_assigned'];
 
 const notificationSchema = new mongoose.Schema(
   {

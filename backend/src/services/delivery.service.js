@@ -139,6 +139,7 @@ async function assignRider(id, riderId) {
   await delivery.populate(FULL_POPULATE);
 
   await notificationService.notifyDeliveryStatus(delivery.order, delivery, 'assigned');
+  await notificationService.notifyRiderAssigned(rider, delivery.order, delivery);
 
   return delivery;
 }
