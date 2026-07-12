@@ -23,7 +23,7 @@ const listMine = catchAsync(async (req, res) => {
 });
 
 const confirm = catchAsync(async (req, res) => {
-  const payment = await paymentService.confirm(req.params.id);
+  const payment = await paymentService.confirm(req.params.id, req.user);
   return new ApiResponse(200, payment, 'Payment confirmed').send(res);
 });
 

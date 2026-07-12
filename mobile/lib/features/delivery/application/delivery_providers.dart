@@ -24,6 +24,12 @@ final deliveryByIdProvider = FutureProvider.autoDispose.family<DeliveryModel, St
   return ref.watch(deliveryRepositoryProvider).getById(id);
 });
 
+/// Riders a pharmacist/admin can dispatch a delivery to — used by
+/// [PharmacistOrderActions]'s rider picker.
+final availableRidersProvider = FutureProvider.autoDispose<List<DeliveryRider>>((ref) {
+  return ref.watch(deliveryRepositoryProvider).listRiders();
+});
+
 /// Deliveries currently assigned to this rider and not yet finished
 /// (assigned/picked_up/in_transit). A rider realistically juggles a
 /// handful of these at once, so this is a single fetch rather than

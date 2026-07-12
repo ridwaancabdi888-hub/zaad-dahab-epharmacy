@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/route_paths.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_indicator.dart';
@@ -130,29 +131,33 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.lg),
                 const SectionHeader(title: 'Recommended for You'),
                 const SizedBox(height: AppSpacing.sm),
-                SizedBox(
-                  height: 240,
-                  child: recommendedAsync.when(
-                    data: (medicines) => medicines.isEmpty
-                        ? const EmptyState(
-                            icon: Icons.medication_outlined,
-                            title: 'No products yet',
-                            message: 'Check back soon for new arrivals.',
-                          )
-                        : ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: medicines.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-                            itemBuilder: (context, index) => SizedBox(
-                              width: 170,
-                              child: MedicineCard(medicine: medicines[index]),
-                            ),
+                // A multi-row grid (not a single horizontal strip) so the
+                // full catalog is reachable by scrolling down the page,
+                // rather than capped to whatever fit in one short row.
+                recommendedAsync.when(
+                  data: (medicines) => medicines.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.medication_outlined,
+                          title: 'No products yet',
+                          message: 'Check back soon for new arrivals.',
+                        )
+                      : GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: context.gridColumns,
+                            mainAxisSpacing: AppSpacing.gutter,
+                            crossAxisSpacing: AppSpacing.gutter,
+                            childAspectRatio: 0.66,
                           ),
-                    loading: () => const LoadingIndicator(),
-                    error: (error, _) => ErrorView(
-                      error: error,
-                      onRetry: () => ref.invalidate(recommendedMedicinesProvider),
-                    ),
+                          itemCount: medicines.length,
+                          itemBuilder: (context, index) =>
+                              MedicineCard(medicine: medicines[index]),
+                        ),
+                  loading: () => const LoadingIndicator(),
+                  error: (error, _) => ErrorView(
+                    error: error,
+                    onRetry: () => ref.invalidate(recommendedMedicinesProvider),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),

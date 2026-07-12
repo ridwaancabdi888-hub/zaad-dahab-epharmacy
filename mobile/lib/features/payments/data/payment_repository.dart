@@ -33,6 +33,13 @@ class PaymentRepository {
     return PaymentModel.fromJson(json);
   }
 
+  /// Pharmacist/admin manual override — marks a payment paid regardless
+  /// of what the gateway says (see `payment.service.js#confirm`).
+  Future<PaymentModel> confirm(String id) async {
+    final json = await _apiClient.post('/payments/$id/confirm') as Map<String, dynamic>;
+    return PaymentModel.fromJson(json);
+  }
+
   Future<PaymentPage> listMine({int page = 1, int limit = 20, String? status}) async {
     final json = await _apiClient.get('/payments/me', query: {
       'page': page,

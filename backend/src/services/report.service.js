@@ -10,11 +10,15 @@ const TOP_MEDICINES_LIMIT = 5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * "Revenue" throughout this dashboard means the sum of `total` on orders
- * that were never cancelled — the closest honest proxy to sales volume
- * this domain model supports, since Cash-on-Delivery orders don't have a
- * stricter "payment completed" signal until they're actually delivered.
+ * "Revenue" throughout this dashboard means cash actually collected —
+ * `Payment.amount` summed over `status: 'completed'` payments only, dated
+ * by `paidAt` (when the money was actually received), not order-placement
+ * time. A Zaad/e-Dahab payment completes as soon as the gateway confirms
+ * it; a Cash-on-Delivery payment only completes when the rider marks the
+ * delivery as delivered (see `delivery.service.js#updateStatus`) — so an
+ * order sitting unpaid/undelivered correctly does not inflate revenue.
  */
+const COMPLETED_PAYMENT = { status: 'completed' };
 const NOT_CANCELLED = { status: { $ne: 'cancelled' } };
 
 async function usersByRole() {
@@ -29,17 +33,19 @@ async function usersByRole() {
 }
 
 async function orderTotals() {
-  const rows = await Order.aggregate([
-    { $group: { _id: '$status', count: { $sum: 1 }, revenue: { $sum: '$total' } } },
+  const [rows, [paymentRow]] = await Promise.all([
+    Order.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+    Payment.aggregate([
+      { $match: COMPLETED_PAYMENT },
+      { $group: { _id: null, revenue: { $sum: '$amount' } } },
+    ]),
   ]);
 
   const ordersByStatus = rows.map((row) => ({ status: row._id, count: row.count }));
   const totalOrders = rows.reduce((sum, row) => sum + row.count, 0);
   const cancelledOrders = rows.find((row) => row._id === 'cancelled')?.count || 0;
   const deliveredOrders = rows.find((row) => row._id === 'delivered')?.count || 0;
-  const revenue = rows
-    .filter((row) => row._id !== 'cancelled')
-    .reduce((sum, row) => sum + row.revenue, 0);
+  const revenue = paymentRow?.revenue || 0;
 
   return { ordersByStatus, totalOrders, cancelledOrders, deliveredOrders, revenue };
 }
@@ -50,18 +56,23 @@ async function orderTotals() {
  * with Mongo's `$dateToString`, which groups in UTC by default —
  * mixing the two caused "today"'s bucket to silently miss orders
  * whenever the server's local timezone wasn't UTC.
+ *
+ * Buckets by `paidAt` (when a payment actually completed), not order
+ * creation time — a Cash-on-Delivery order placed today but delivered
+ * (and so paid) tomorrow shows up in tomorrow's revenue, matching when
+ * the cash was actually collected.
  */
 async function revenueByDay() {
   const now = new Date();
   const todayUtcMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const sinceUtcMs = todayUtcMs - (REVENUE_DAYS - 1) * MS_PER_DAY;
 
-  const rows = await Order.aggregate([
-    { $match: { ...NOT_CANCELLED, createdAt: { $gte: new Date(sinceUtcMs) } } },
+  const rows = await Payment.aggregate([
+    { $match: { ...COMPLETED_PAYMENT, paidAt: { $gte: new Date(sinceUtcMs) } } },
     {
       $group: {
-        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' } },
-        revenue: { $sum: '$total' },
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$paidAt', timezone: 'UTC' } },
+        revenue: { $sum: '$amount' },
         orders: { $sum: 1 },
       },
     },

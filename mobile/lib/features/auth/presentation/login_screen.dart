@@ -86,7 +86,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               color: Colors.white, size: 32),
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        Text('Zaad/e-Dahab',
+                        Text('E-Pharmacy',
                             style: Theme.of(context)
                                 .textTheme
                                 .headlineLarge
@@ -211,7 +211,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    "BY CONTINUING, YOU AGREE TO ZAAD/E-DAHAB'S TERMS OF SERVICE AND "
+                    "BY CONTINUING, YOU AGREE TO E-PHARMACY'S TERMS OF SERVICE AND "
                     'PRIVACY POLICY',
                     textAlign: TextAlign.center,
                     style: Theme.of(context)

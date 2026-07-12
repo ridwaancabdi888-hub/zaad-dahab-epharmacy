@@ -24,6 +24,20 @@ class OrderItemModel {
   }
 }
 
+class OrderStatusEvent {
+  const OrderStatusEvent({required this.status, required this.at});
+
+  final String status;
+  final DateTime at;
+
+  factory OrderStatusEvent.fromJson(Map<String, dynamic> json) {
+    return OrderStatusEvent(
+      status: json['status'] as String,
+      at: DateTime.parse(json['at'] as String),
+    );
+  }
+}
+
 class OrderAddressModel {
   const OrderAddressModel({required this.label, required this.street, required this.city});
 
@@ -57,6 +71,7 @@ class OrderModel {
     required this.paymentMethod,
     required this.createdAt,
     this.couponCode,
+    this.statusHistory = const [],
   });
 
   final String id;
@@ -72,6 +87,7 @@ class OrderModel {
   final String paymentMethod;
   final DateTime createdAt;
   final String? couponCode;
+  final List<OrderStatusEvent> statusHistory;
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
@@ -92,6 +108,10 @@ class OrderModel {
       paymentMethod: json['paymentMethod'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       couponCode: json['couponCode'] as String?,
+      statusHistory: (json['statusHistory'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(OrderStatusEvent.fromJson)
+          .toList(growable: false),
     );
   }
 }

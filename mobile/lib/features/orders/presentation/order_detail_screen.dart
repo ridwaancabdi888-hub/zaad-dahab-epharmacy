@@ -6,15 +6,14 @@ import '../../../core/theme/app_dimens.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_indicator.dart';
 import '../../../core/widgets/responsive_center.dart';
-import '../../checkout/application/checkout_controller.dart';
+import '../../auth/application/auth_controller.dart';
 import '../../delivery/presentation/delivery_tracking_section.dart';
 import '../../payments/application/payment_providers.dart';
 import '../../payments/presentation/payment_status_card.dart';
+import '../application/order_providers.dart';
 import '../data/order_model.dart';
-
-final orderByIdProvider = FutureProvider.autoDispose.family<OrderModel, String>((ref, id) {
-  return ref.watch(orderRepositoryProvider).getById(id);
-});
+import 'order_status_stepper.dart';
+import 'pharmacist_order_actions.dart';
 
 const _statusLabels = {
   'pending': 'Pending',
@@ -33,6 +32,7 @@ class OrderDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final orderAsync = ref.watch(orderByIdProvider(orderId));
+    final isPharmacist = ref.watch(authControllerProvider).user?.role == 'pharmacist';
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -50,6 +50,18 @@ class OrderDetailScreen extends ConsumerWidget {
                     Chip(label: Text(_statusLabels[order.status] ?? order.status)),
                   ],
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                Text('Order Status', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: AppSpacing.sm),
+                OrderStatusStepper(order: order),
+                if (isPharmacist) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  PharmacistOrderActions(
+                    orderId: orderId,
+                    orderStatus: order.status,
+                    onChanged: () => ref.invalidate(orderByIdProvider(orderId)),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.md),
                 Text('Items', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: AppSpacing.sm),

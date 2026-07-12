@@ -10,6 +10,13 @@ class CheckoutResult {
   final PaymentModel payment;
 }
 
+class OrderPage {
+  const OrderPage({required this.items, required this.total});
+
+  final List<OrderModel> items;
+  final int total;
+}
+
 class OrderRepository {
   OrderRepository({required this._apiClient});
 
@@ -47,6 +54,37 @@ class OrderRepository {
 
   Future<OrderModel> getById(String orderId) async {
     final json = await _apiClient.get('/orders/$orderId') as Map<String, dynamic>;
+    return OrderModel.fromJson(json);
+  }
+
+  /// Every order platform-wide, newest first — a pharmacist's/admin's
+  /// view (see `order.service.js#list`; a customer hitting this same
+  /// endpoint only ever gets their own orders back, server-side).
+  Future<OrderPage> listAll({int page = 1, int limit = 20, String? status}) async {
+    final json = await _apiClient.get('/orders', query: {
+      'page': page,
+      'limit': limit,
+      'status': ?status,
+    }) as Map<String, dynamic>;
+
+    final items = (json['items'] as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(OrderModel.fromJson)
+        .toList(growable: false);
+    final total = (json['meta'] as Map<String, dynamic>)['total'] as int;
+
+    return OrderPage(items: items, total: total);
+  }
+
+  Future<OrderModel> updateStatus(String orderId, String status) async {
+    final json = await _apiClient.patch('/orders/$orderId/status', data: {
+      'status': status,
+    }) as Map<String, dynamic>;
+    return OrderModel.fromJson(json);
+  }
+
+  Future<OrderModel> cancel(String orderId) async {
+    final json = await _apiClient.patch('/orders/$orderId/cancel') as Map<String, dynamic>;
     return OrderModel.fromJson(json);
   }
 }

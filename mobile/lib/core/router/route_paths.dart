@@ -10,6 +10,7 @@ abstract final class RoutePaths {
 
   static const home = '/home';
   static const categories = '/categories';
+  static const orders = '/orders';
   static const cart = '/cart';
   static const profile = '/profile';
 

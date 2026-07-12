@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import RequireAdmin from './auth/RequireAdmin';
+import { useAuth } from './auth/AuthContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import Spinner from './components/ui/Spinner';
@@ -30,7 +31,7 @@ export default function App() {
           </RequireAdmin>
         }
       >
-        <Route index element={<Page><DashboardPage /></Page>} />
+        <Route index element={<Page><Index /></Page>} />
         <Route path="medicines" element={<Page><MedicinesPage /></Page>} />
         <Route path="categories" element={<Page><CategoriesPage /></Page>} />
         <Route path="orders" element={<Page><OrdersPage /></Page>} />
@@ -46,4 +47,15 @@ export default function App() {
 
 function Page({ children }) {
   return <Suspense fallback={<Spinner />}>{children}</Suspense>;
+}
+
+// The Dashboard is backed by admin-only report endpoints — a pharmacist
+// would just see it fail, so send them straight to the one page they
+// actually have (Orders) instead.
+function Index() {
+  const { user } = useAuth();
+  if (user?.role === 'pharmacist') {
+    return <Navigate to="/orders" replace />;
+  }
+  return <DashboardPage />;
 }

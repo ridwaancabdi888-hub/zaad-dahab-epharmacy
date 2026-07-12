@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { deliveriesApi, ordersApi, usersApi } from '../api/resources';
+import { deliveriesApi, ordersApi, paymentsApi, usersApi } from '../api/resources';
+import { useAuth } from '../auth/AuthContext';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import Spinner from '../components/ui/Spinner';
 import ErrorBanner from '../components/ui/ErrorBanner';
@@ -34,7 +35,18 @@ const DELIVERY_STATUS_VARIANT = {
   cancelled: 'error',
 };
 
+const PAYMENT_STATUS_VARIANT = {
+  pending: 'neutral',
+  processing: 'info',
+  completed: 'success',
+  failed: 'error',
+  refunded: 'info',
+  cancelled: 'error',
+};
+
 export default function OrdersPage() {
+  const { user } = useAuth();
+  const isPharmacist = user?.role === 'pharmacist';
   const [statusFilter, setStatusFilter] = useState('');
   const [selected, setSelected] = useState(null);
   const [isWorking, setIsWorking] = useState(false);
@@ -46,6 +58,11 @@ export default function OrdersPage() {
   const [riders, setRiders] = useState([]);
   const [riderChoice, setRiderChoice] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
+
+  const [payment, setPayment] = useState(null);
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
   const filters = useMemo(() => ({ status: statusFilter || undefined }), [statusFilter]);
   const { items, meta, setPage, isLoading, error, refresh } = usePaginatedList(
@@ -71,17 +88,44 @@ export default function OrdersPage() {
     }
   };
 
+  const loadPayment = async (orderId) => {
+    setIsPaymentLoading(true);
+    setPaymentError(null);
+    try {
+      setPayment(await paymentsApi.getByOrderId(orderId));
+    } catch (err) {
+      setPayment(null);
+      setPaymentError(err);
+    } finally {
+      setIsPaymentLoading(false);
+    }
+  };
+
   const openDetail = async (order) => {
     setActionError(null);
     setSelected(order);
     setDelivery(null);
     setRiderChoice('');
+    setPayment(null);
     loadDelivery(order._id);
+    loadPayment(order._id);
     try {
       const full = await ordersApi.getById(order._id);
       setSelected(full);
     } catch (err) {
       setActionError(err.message);
+    }
+  };
+
+  const confirmPayment = async () => {
+    setIsConfirmingPayment(true);
+    setPaymentError(null);
+    try {
+      setPayment(await paymentsApi.confirm(payment._id));
+    } catch (err) {
+      setPaymentError(err);
+    } finally {
+      setIsConfirmingPayment(false);
     }
   };
 
@@ -224,6 +268,34 @@ export default function OrdersPage() {
             {selected.deliveryAddress?.label} — {selected.deliveryAddress?.street}, {selected.deliveryAddress?.city}
           </p>
 
+          <h4 className="mt-md">Payment</h4>
+          {isPaymentLoading ? (
+            <Spinner />
+          ) : paymentError ? (
+            <ErrorBanner error={paymentError} onRetry={() => loadPayment(selected._id)} />
+          ) : !payment ? (
+            <p className="text-muted" style={{ fontSize: 14 }}>No payment record for this order.</p>
+          ) : (
+            <div style={{ fontSize: 14 }}>
+              <div className="flex-between" style={{ marginBottom: 8 }}>
+                <span>
+                  {titleCase(payment.method)} — {formatCurrency(payment.amount)}
+                </span>
+                <Badge variant={PAYMENT_STATUS_VARIANT[payment.status]}>{titleCase(payment.status)}</Badge>
+              </div>
+              {payment.status !== 'completed' && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={confirmPayment}
+                  disabled={isConfirmingPayment}
+                >
+                  {isConfirmingPayment ? 'Confirming…' : 'Confirm Payment'}
+                </button>
+              )}
+            </div>
+          )}
+
           <h4 className="mt-md">Delivery &amp; Rider</h4>
           {isDeliveryLoading ? (
             <Spinner />
@@ -342,7 +414,7 @@ export default function OrdersPage() {
             <div className="modal-actions">
               {canCancel && (
                 <button type="button" className="btn btn-danger" onClick={cancel} disabled={isWorking}>
-                  Cancel Order
+                  {isPharmacist ? 'Mark Out of Stock' : 'Cancel Order'}
                 </button>
               )}
               {nextStatus && (

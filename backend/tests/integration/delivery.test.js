@@ -52,6 +52,94 @@ describe('Delivery API', () => {
     expect(res.status).toBe(400);
   });
 
+  it('assigning a rider auto-advances a still-pending order to preparing', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+
+    const { order, delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+    expect(order.status).toBe('pending');
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    const orderRes = await request(app)
+      .get(`/api/v1/orders/${order._id}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+    expect(orderRes.body.data.status).toBe('preparing');
+  });
+
+  it('does not regress an order that already moved past preparing when a rider is (re-)assigned', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const riderA = await registerUser({ role: 'rider' });
+    const riderB = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+
+    const { order, delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: riderA.user._id });
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/status`)
+      .set('Authorization', `Bearer ${riderA.accessToken}`)
+      .send({ status: 'picked_up' });
+
+    // Re-assigning to a different rider mid-flight must not undo the
+    // order's further progress (already out_for_delivery by this point).
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: riderB.user._id });
+
+    const orderRes = await request(app)
+      .get(`/api/v1/orders/${order._id}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`);
+    expect(orderRes.body.data.status).toBe('out_for_delivery');
+  });
+
+  it('lets a pharmacist assign a rider to a delivery for their own pharmacy', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { pharmacist, medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    const assignRes = await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${pharmacist.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    expect(assignRes.status).toBe(200);
+    expect(assignRes.body.data.status).toBe('assigned');
+    expect(assignRes.body.data.rider._id).toBe(rider.user._id);
+  });
+
+  it("lets a pharmacist assign a rider to another pharmacy's order (fulfillment is shared across pharmacies)", async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { pharmacist: otherPharmacist } = await buildCatalogFixture(admin.accessToken, {
+      stock: 5,
+      price: 10,
+    });
+    const { delivery } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    const assignRes = await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${otherPharmacist.accessToken}`)
+      .send({ riderId: rider.user._id });
+
+    expect(assignRes.status).toBe(200);
+    expect(assignRes.body.data.status).toBe('assigned');
+  });
+
   it('only lets the assigned rider (or admin) progress the delivery', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();

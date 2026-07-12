@@ -15,6 +15,7 @@ import '../../features/delivery/presentation/rider_deliveries_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/orders/presentation/pharmacist_orders_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/shell/main_shell.dart';
 import '../../features/shell/rider_shell.dart';
@@ -60,6 +61,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: RoutePaths.categories,
                 builder: (context, state) => const CategoriesScreen(),
+              ),
+            ],
+          ),
+          // Only surfaced as a nav tab for pharmacists (see MainShell) —
+          // still registered here so the route exists for everyone;
+          // the router's redirect guards a customer straight back out.
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.orders,
+                builder: (context, state) => const PharmacistOrdersScreen(),
               ),
             ],
           ),
@@ -150,8 +162,12 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 
     // Authenticated: send riders to their own shell (Active/Completed/
     // Alerts/Profile) instead of the customer shopping shell, and never
-    // let the user land back on splash/onboarding/auth.
+    // let the user land back on splash/onboarding/auth. Pharmacists stay
+    // in the same shell as customers — they just get an extra "Orders"
+    // tab (see MainShell) — so the only pharmacist-specific rule here is
+    // keeping a non-pharmacist out of that tab's route directly.
     final isRider = authState.user?.role == 'rider';
+    final isPharmacist = authState.user?.role == 'pharmacist';
     final riderHome = RoutePaths.riderDeliveries;
     final isSplashOrPublic =
         location == RoutePaths.splash || RoutePaths.publicRoutes.contains(location);
@@ -163,6 +179,9 @@ class _RouterRefreshNotifier extends ChangeNotifier {
       return riderHome;
     }
     if (!isRider && location.startsWith('/rider')) {
+      return RoutePaths.home;
+    }
+    if (!isPharmacist && location == RoutePaths.orders) {
       return RoutePaths.home;
     }
     return null;

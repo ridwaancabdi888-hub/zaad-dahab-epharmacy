@@ -18,7 +18,7 @@ const list = catchAsync(async (req, res) => {
 });
 
 const assignRider = catchAsync(async (req, res) => {
-  const delivery = await deliveryService.assignRider(req.params.id, req.body.riderId);
+  const delivery = await deliveryService.assignRider(req.params.id, req.body.riderId, req.user);
   return new ApiResponse(200, delivery, 'Rider assigned successfully').send(res);
 });
 

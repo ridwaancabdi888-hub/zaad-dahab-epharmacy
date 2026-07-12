@@ -30,7 +30,7 @@ router.get('/order/:orderId', orderIdParamValidator, validate, paymentController
 router.get('/:id', idParamValidator, validate, paymentController.getById);
 router.post(
   '/:id/confirm',
-  authorize('admin'),
+  authorize('admin', 'pharmacist'),
   idParamValidator,
   validate,
   auditLog('payment.confirm', 'Payment'),

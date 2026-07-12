@@ -35,7 +35,7 @@ export default function LoginPage() {
       <div className="login-card">
         <div className="login-logo">Z</div>
         <h1 className="login-title">Zaad/e-Dahab Admin</h1>
-        <p className="login-subtitle">Sign in with an administrator account</p>
+        <p className="login-subtitle">Sign in with your admin or pharmacy account</p>
 
         {sessionMessage && <div className="error-banner">{sessionMessage}</div>}
         {error && <div className="error-banner">{error}</div>}

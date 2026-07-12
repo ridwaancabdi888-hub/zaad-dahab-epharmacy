@@ -45,6 +45,7 @@ export const usersApi = {
 
 export const paymentsApi = {
   list: ({ page, limit, status, method }) => apiClient.get('/payments', { page, limit, status, method }),
+  getByOrderId: (orderId) => apiClient.get(`/payments/order/${orderId}`),
   confirm: (id) => apiClient.post(`/payments/${id}/confirm`),
 };
 

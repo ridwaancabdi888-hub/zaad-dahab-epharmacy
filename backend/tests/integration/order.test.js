@@ -139,10 +139,17 @@ describe('Order checkout', () => {
 });
 
 describe('Order visibility and status transitions', () => {
-  it('scopes order listing by role: customer sees own, pharmacist sees their pharmacy, admin sees all', async () => {
+  it('scopes order listing by role: customer sees only their own; pharmacist and admin see every order, any pharmacy', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();
     const { pharmacist, medicine } = await buildCatalogFixture(admin.accessToken, {
+      stock: 10,
+      price: 10,
+    });
+    // A second, unrelated pharmacy — order fulfillment is shared staff
+    // work across pharmacies, so the first pharmacist should see this
+    // order too, not just their own pharmacy's.
+    const { medicine: otherPharmacyMedicine } = await buildCatalogFixture(admin.accessToken, {
       stock: 10,
       price: 10,
     });
@@ -152,21 +159,26 @@ describe('Order visibility and status transitions', () => {
       .post('/api/v1/orders')
       .set('Authorization', `Bearer ${customer.accessToken}`)
       .send({ deliveryAddress: address, paymentMethod: 'cod' });
+    await addToCart(customer.accessToken, otherPharmacyMedicine._id, 1);
+    await request(app)
+      .post('/api/v1/orders')
+      .set('Authorization', `Bearer ${customer.accessToken}`)
+      .send({ deliveryAddress: address, paymentMethod: 'cod' });
 
     const customerList = await request(app)
       .get('/api/v1/orders')
       .set('Authorization', `Bearer ${customer.accessToken}`);
-    expect(customerList.body.data.items).toHaveLength(1);
+    expect(customerList.body.data.items).toHaveLength(2);
 
     const pharmacistList = await request(app)
       .get('/api/v1/orders')
       .set('Authorization', `Bearer ${pharmacist.accessToken}`);
-    expect(pharmacistList.body.data.items).toHaveLength(1);
+    expect(pharmacistList.body.data.items.length).toBeGreaterThanOrEqual(2);
 
     const adminList = await request(app)
       .get('/api/v1/orders')
       .set('Authorization', `Bearer ${admin.accessToken}`);
-    expect(adminList.body.data.items.length).toBeGreaterThanOrEqual(1);
+    expect(adminList.body.data.items.length).toBeGreaterThanOrEqual(2);
 
     const otherCustomer = await registerUser();
     const otherList = await request(app)

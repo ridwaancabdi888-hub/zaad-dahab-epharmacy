@@ -118,10 +118,16 @@ async function list(actingUser, query) {
   return { items, meta: buildMeta({ page, limit, total }) };
 }
 
-async function assignRider(id, riderId) {
-  const delivery = await Delivery.findById(id);
+async function assignRider(id, riderId, actingUser) {
+  const delivery = await Delivery.findById(id).populate(ORDER_POPULATE);
   if (!delivery) {
     throw ApiError.notFound('Delivery not found');
+  }
+  // Admins can assign any delivery; a pharmacist may only assign a rider
+  // for a delivery whose order contains at least one of their own
+  // pharmacy's items (same boundary as viewing/cancelling the order).
+  if (actingUser.role !== 'admin' && !orderService.userCanAccessOrder(delivery.order, actingUser)) {
+    throw ApiError.forbidden('You do not have permission to assign a rider to this delivery');
   }
   if (['delivered', 'cancelled'].includes(delivery.status)) {
     throw ApiError.badRequest(`Cannot assign a rider to a delivery in status "${delivery.status}"`);
@@ -136,6 +142,7 @@ async function assignRider(id, riderId) {
   delivery.status = 'assigned';
   delivery.statusHistory.push({ status: 'assigned' });
   await delivery.save();
+  await orderService.markPreparing(delivery.order._id);
   await delivery.populate(FULL_POPULATE);
 
   await notificationService.notifyDeliveryStatus(delivery.order, delivery, 'assigned');

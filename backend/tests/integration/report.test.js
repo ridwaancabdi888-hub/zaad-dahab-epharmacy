@@ -28,9 +28,24 @@ describe('Reports API (admin dashboard)', () => {
   it('aggregates totals, orders by status, revenue, payments, and top medicines', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();
+    const rider = await registerUser({ role: 'rider' });
     const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 10, price: 20 });
 
-    const { order } = await checkoutOrder(customer.accessToken, medicine._id, 2);
+    const { order, delivery } = await checkoutOrder(customer.accessToken, medicine._id, 2);
+
+    // Revenue only counts collected payments (see report.service.js) — a
+    // freshly placed COD order hasn't paid yet, so drive the delivery to
+    // "delivered" to auto-complete its payment (delivery.service.js).
+    await request(app)
+      .patch(`/api/v1/deliveries/${delivery._id}/assign`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({ riderId: rider.user._id });
+    for (const status of ['picked_up', 'in_transit', 'delivered']) {
+      await request(app)
+        .patch(`/api/v1/deliveries/${delivery._id}/status`)
+        .set('Authorization', `Bearer ${rider.accessToken}`)
+        .send({ status });
+    }
 
     const res = await request(app)
       .get('/api/v1/reports/dashboard')
@@ -44,12 +59,12 @@ describe('Reports API (admin dashboard)', () => {
     expect(report.totals.orders).toBeGreaterThanOrEqual(1);
     expect(report.totals.revenue).toBeGreaterThanOrEqual(order.total);
     // Today's revenue is a subset of all-time revenue and must include
-    // the order just placed (it was placed today).
+    // the order just delivered (its COD payment completed today).
     expect(report.totals.revenueToday).toBeGreaterThanOrEqual(order.total);
     expect(report.totals.revenueToday).toBeLessThanOrEqual(report.totals.revenue);
 
     expect(Array.isArray(report.ordersByStatus)).toBe(true);
-    expect(report.ordersByStatus.some((row) => row.status === 'pending')).toBe(true);
+    expect(report.ordersByStatus.some((row) => row.status === 'delivered')).toBe(true);
 
     expect(Array.isArray(report.revenueByDay)).toBe(true);
     expect(report.revenueByDay).toHaveLength(14);

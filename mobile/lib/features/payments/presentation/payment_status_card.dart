@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
+import '../../auth/application/auth_controller.dart';
 import '../application/payment_providers.dart';
 import '../data/payment_model.dart';
 import 'payment_status_chip.dart';
@@ -49,6 +50,7 @@ class _PaymentStatusCardState extends ConsumerState<PaymentStatusCard> {
   Widget build(BuildContext context) {
     final payment = widget.payment;
     final repository = ref.read(paymentRepositoryProvider);
+    final isPharmacist = ref.watch(authControllerProvider).user?.role == 'pharmacist';
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -108,6 +110,20 @@ class _PaymentStatusCardState extends ConsumerState<PaymentStatusCard> {
                     )
                   : const Icon(Icons.replay),
               label: const Text('Retry Payment'),
+            ),
+          ],
+          if (isPharmacist && !payment.isCompleted) ...[
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton.icon(
+              onPressed: _isWorking ? null : () => _run(() => repository.confirm(payment.id)),
+              icon: _isWorking
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check_circle_outline),
+              label: const Text('Confirm Payment'),
             ),
           ],
         ],

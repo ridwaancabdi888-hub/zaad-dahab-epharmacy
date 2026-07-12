@@ -13,7 +13,7 @@ import {
   UsersIcon,
 } from '../icons';
 
-const NAV_ITEMS = [
+const ADMIN_NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: DashboardIcon, end: true },
   { to: '/medicines', label: 'Medicines', icon: PillIcon },
   { to: '/categories', label: 'Categories', icon: CategoryIcon },
@@ -23,6 +23,18 @@ const NAV_ITEMS = [
   { to: '/reports', label: 'Reports', icon: ReportIcon },
   { to: '/roles', label: 'Role Management', icon: RoleIcon },
   { to: '/audit-logs', label: 'Audit Logs', icon: AuditIcon },
+];
+
+// A pharmacist manages order fulfillment platform-wide (assigning a
+// rider, flagging an item out of stock, confirming payments) and has
+// full user-management access alongside admin — every other page here
+// is either irrelevant to them or backed by an admin-only endpoint that
+// would just 403, so it's left out of their nav entirely rather than
+// shown and then failing.
+const PHARMACIST_NAV_ITEMS = [
+  { to: '/orders', label: 'Orders', icon: OrderIcon, end: true },
+  { to: '/customers', label: 'Customers', icon: UsersIcon },
+  { to: '/roles', label: 'Role Management', icon: RoleIcon },
 ];
 
 function initials(name = '') {
@@ -36,6 +48,8 @@ function initials(name = '') {
 
 export default function AppShell() {
   const { user, logout } = useAuth();
+  const isPharmacist = user?.role === 'pharmacist';
+  const navItems = isPharmacist ? PHARMACIST_NAV_ITEMS : ADMIN_NAV_ITEMS;
 
   return (
     <div className="app-shell">
@@ -45,12 +59,12 @@ export default function AppShell() {
           <div className="sidebar-brand-text">
             Zaad/e-Dahab
             <br />
-            Admin
+            {isPharmacist ? 'Pharmacy' : 'Admin'}
           </div>
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+          {navItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -73,7 +87,7 @@ export default function AppShell() {
 
       <div className="main-area">
         <header className="topbar">
-          <div className="topbar-title">Admin Dashboard</div>
+          <div className="topbar-title">{isPharmacist ? 'Pharmacy Orders' : 'Admin Dashboard'}</div>
           <div className="topbar-user">
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 13.5, fontWeight: 600 }}>{user?.name}</div>

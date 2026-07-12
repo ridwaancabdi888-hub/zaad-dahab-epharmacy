@@ -107,6 +107,40 @@ describe('Payment API — admin confirm (manual override)', () => {
     expect(confirmRes.body.data.paidAt).not.toBeNull();
   });
 
+  it('lets a pharmacist confirm a payment for their own pharmacy', async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { pharmacist, medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+
+    const { payment } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    const confirmRes = await request(app)
+      .post(`/api/v1/payments/${payment._id}/confirm`)
+      .set('Authorization', `Bearer ${pharmacist.accessToken}`);
+
+    expect(confirmRes.status).toBe(200);
+    expect(confirmRes.body.data.status).toBe('completed');
+  });
+
+  it("lets a pharmacist confirm another pharmacy's payment (fulfillment is shared across pharmacies)", async () => {
+    const admin = await registerUser({ role: 'admin' });
+    const customer = await registerUser();
+    const { medicine } = await buildCatalogFixture(admin.accessToken, { stock: 5, price: 10 });
+    const { pharmacist: otherPharmacist } = await buildCatalogFixture(admin.accessToken, {
+      stock: 5,
+      price: 10,
+    });
+
+    const { payment } = await checkoutOrder(customer.accessToken, medicine._id);
+
+    const confirmRes = await request(app)
+      .post(`/api/v1/payments/${payment._id}/confirm`)
+      .set('Authorization', `Bearer ${otherPharmacist.accessToken}`);
+
+    expect(confirmRes.status).toBe(200);
+    expect(confirmRes.body.data.status).toBe('completed');
+  });
+
   it('forbids non-admins from confirming payments and listing all payments', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();

@@ -21,7 +21,7 @@ router.get('/:id', idParamValidator, validate, deliveryController.getById);
 
 router.patch(
   '/:id/assign',
-  authorize('admin'),
+  authorize('admin', 'pharmacist'),
   assignRiderValidator,
   validate,
   deliveryController.assignRider,

@@ -47,10 +47,10 @@ class CategoriesScreen extends ConsumerWidget {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: context.isCompact ? 2 : context.gridColumns,
+                            crossAxisCount: context.gridColumns,
                             mainAxisSpacing: AppSpacing.gutter,
                             crossAxisSpacing: AppSpacing.gutter,
-                            childAspectRatio: 0.95,
+                            childAspectRatio: 0.85,
                           ),
                           itemCount: categories.length,
                           itemBuilder: (context, index) {
@@ -126,13 +126,15 @@ class _CategoryCard extends StatelessWidget {
             const Spacer(),
             Text(
               category.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             if (category.description.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
                 category.description,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),

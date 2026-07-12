@@ -212,12 +212,17 @@ async function checkout(
   return { order, payment, delivery };
 }
 
+/**
+ * A pharmacist can act on any order platform-wide, not just ones
+ * containing their own pharmacy's items — order fulfillment (confirm,
+ * prepare, cancel/mark-out-of-stock, assign a delivery rider, confirm a
+ * payment) is treated as a shared staff responsibility across pharmacies
+ * rather than siloed per-pharmacy, so pharmacists never have to hand off
+ * to an admin just to move someone else's order along.
+ */
 function userCanAccessOrder(order, actingUser) {
-  if (actingUser.role === 'admin') return true;
+  if (actingUser.role === 'admin' || actingUser.role === 'pharmacist') return true;
   if (String(order.user._id || order.user) === String(actingUser._id)) return true;
-  if (actingUser.pharmacy) {
-    return order.items.some((item) => String(item.pharmacy) === String(actingUser.pharmacy));
-  }
   return false;
 }
 
@@ -227,13 +232,8 @@ async function list(actingUser, query) {
 
   if (actingUser.role === 'customer') {
     filter.user = actingUser._id;
-  } else if (actingUser.role === 'pharmacist') {
-    if (!actingUser.pharmacy) {
-      return { items: [], meta: buildMeta({ page, limit, total: 0 }) };
-    }
-    filter['items.pharmacy'] = actingUser.pharmacy;
   }
-  // admin: no filter, sees everything
+  // admin and pharmacist: no filter, both see every order
 
   if (query.status) {
     filter.status = query.status;
@@ -344,6 +344,25 @@ async function markOutForDelivery(orderId) {
   return order;
 }
 
+/**
+ * Assigning a rider to a delivery is itself a strong, unambiguous signal
+ * that the order is no longer just "pending" review — it's being
+ * fulfilled. Rather than requiring a pharmacist/admin to separately click
+ * through "Mark Confirmed" then "Mark Preparing" before the assignment
+ * has any visible effect on the order, assigning a rider auto-advances a
+ * still-pending/confirmed order straight to "preparing". Only touches
+ * orders that haven't already moved further on their own (preparing,
+ * out_for_delivery, delivered, cancelled are all left alone).
+ */
+async function markPreparing(orderId) {
+  const order = await Order.findById(orderId);
+  if (!order || !['pending', 'confirmed'].includes(order.status)) return order;
+  order.status = 'preparing';
+  order.statusHistory.push({ status: 'preparing' });
+  await order.save();
+  return order;
+}
+
 module.exports = {
   quote,
   checkout,
@@ -353,5 +372,6 @@ module.exports = {
   cancel,
   markDelivered,
   markOutForDelivery,
+  markPreparing,
   userCanAccessOrder,
 };

@@ -24,6 +24,7 @@ const emptyForm = {
   requiresPrescription: false,
   tags: '',
   isActive: true,
+  imageUrl: '',
 };
 
 function toFormState(medicine) {
@@ -40,6 +41,7 @@ function toFormState(medicine) {
     requiresPrescription: medicine.requiresPrescription,
     tags: (medicine.tags || []).join(', '),
     isActive: medicine.isActive,
+    imageUrl: (medicine.images || [])[0] || '',
   };
 }
 
@@ -60,6 +62,7 @@ function toPayload(form) {
       .map((t) => t.trim())
       .filter(Boolean),
     isActive: form.isActive,
+    images: form.imageUrl.trim() ? [form.imageUrl.trim()] : [],
   };
 }
 
@@ -175,6 +178,7 @@ export default function MedicinesPage() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th></th>
                     <th>Name</th>
                     <th>Category</th>
                     <th>Pharmacy</th>
@@ -187,6 +191,24 @@ export default function MedicinesPage() {
                 <tbody>
                   {items.map((medicine) => (
                     <tr key={medicine._id}>
+                      <td>
+                        {medicine.images?.[0] ? (
+                          <img
+                            src={medicine.images[0]}
+                            alt=""
+                            style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 6,
+                              background: 'var(--surface-2, #eee)',
+                            }}
+                          />
+                        )}
+                      </td>
                       <td>
                         <strong>{medicine.name}</strong>
                         {medicine.requiresPrescription && (
@@ -247,6 +269,35 @@ export default function MedicinesPage() {
                 value={editing.description}
                 onChange={(e) => onFormChange('description', e.target.value)}
               />
+            </div>
+            <div className="field">
+              <label htmlFor="med-image">Image URL (optional)</label>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {editing.imageUrl && (
+                  <img
+                    src={editing.imageUrl}
+                    alt=""
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 8,
+                      objectFit: 'cover',
+                      border: '1px solid var(--border, #ddd)',
+                      flexShrink: 0,
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.visibility = 'hidden';
+                    }}
+                  />
+                )}
+                <input
+                  id="med-image"
+                  placeholder="https://example.com/photo.jpg"
+                  value={editing.imageUrl}
+                  onChange={(e) => onFormChange('imageUrl', e.target.value)}
+                  style={{ flex: 1 }}
+                />
+              </div>
             </div>
             <div className="field-row">
               <div className="field">

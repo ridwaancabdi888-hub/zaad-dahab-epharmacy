@@ -84,10 +84,16 @@ async function removeFromWishlist(userId, medicineId) {
   return getWishlist(userId);
 }
 
+// A pharmacist has the same user-management access as an admin here (see
+// Role Management in the admin panel) — both roles reach this service
+// unfiltered by identity; only the route's `authorize()` distinguishes
+// them from customers/riders, who never reach this function at all.
 async function list(query) {
   const { page, limit, skip } = parsePagination(query);
   const filter = {};
-  if (query.role) filter.role = query.role;
+  if (query.role) {
+    filter.role = query.role;
+  }
 
   const [items, total] = await Promise.all([
     User.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),

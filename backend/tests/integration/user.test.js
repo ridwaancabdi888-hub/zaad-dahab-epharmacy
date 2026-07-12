@@ -103,6 +103,35 @@ describe('Admin user management', () => {
     expect(listRes.status).toBe(403);
   });
 
+  it('lets a pharmacist list, view, create, and edit any user — the same access as an admin', async () => {
+    const pharmacist = await registerUser({ role: 'pharmacist' });
+    const customer = await registerUser();
+
+    const listRes = await request(app)
+      .get('/api/v1/users?role=customer')
+      .set('Authorization', `Bearer ${pharmacist.accessToken}`);
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.data.items.some((u) => u._id === customer.user._id)).toBe(true);
+
+    const getRes = await request(app)
+      .get(`/api/v1/users/${customer.user._id}`)
+      .set('Authorization', `Bearer ${pharmacist.accessToken}`);
+    expect(getRes.status).toBe(200);
+
+    const updateRes = await request(app)
+      .patch(`/api/v1/users/${customer.user._id}`)
+      .set('Authorization', `Bearer ${pharmacist.accessToken}`)
+      .send({ role: 'rider' });
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.data.role).toBe('rider');
+
+    const createRes = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${pharmacist.accessToken}`)
+      .send({ name: 'Pharmacist-Made User', email: 'pharmacist-made@example.com', password: 'Str0ngPass1' });
+    expect(createRes.status).toBe(201);
+  });
+
   it('lets an admin list, view, and deactivate a user', async () => {
     const admin = await registerUser({ role: 'admin' });
     const customer = await registerUser();

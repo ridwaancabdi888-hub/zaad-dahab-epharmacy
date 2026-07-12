@@ -55,4 +55,26 @@ class DeliveryRepository {
     }) as Map<String, dynamic>;
     return DeliveryModel.fromJson(json);
   }
+
+  /// Pharmacist/admin action: dispatches a delivery to the given rider
+  /// (see `delivery.service.js#assignRider`) — this also auto-advances a
+  /// still-pending order to "preparing" server-side.
+  Future<DeliveryModel> assignRider(String deliveryId, String riderId) async {
+    final json = await _apiClient.patch('/deliveries/$deliveryId/assign', data: {
+      'riderId': riderId,
+    }) as Map<String, dynamic>;
+    return DeliveryModel.fromJson(json);
+  }
+
+  /// Active riders a pharmacist/admin can dispatch a delivery to.
+  Future<List<DeliveryRider>> listRiders() async {
+    final json = await _apiClient.get('/users', query: {
+      'role': 'rider',
+      'limit': 100,
+    }) as Map<String, dynamic>;
+    return (json['items'] as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(DeliveryRider.fromJson)
+        .toList(growable: false);
+  }
 }

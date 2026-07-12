@@ -49,19 +49,19 @@ router.delete(
   userController.removeFromWishlist,
 );
 
-router.get('/', authorize('admin'), listUsersValidator, validate, userController.list);
+router.get('/', authorize('admin', 'pharmacist'), listUsersValidator, validate, userController.list);
 router.post(
   '/',
-  authorize('admin'),
+  authorize('admin', 'pharmacist'),
   adminCreateValidator,
   validate,
   auditLog('user.create', 'User'),
   userController.adminCreate,
 );
-router.get('/:id', authorize('admin'), idParamValidator, validate, userController.getById);
+router.get('/:id', authorize('admin', 'pharmacist'), idParamValidator, validate, userController.getById);
 router.patch(
   '/:id',
-  authorize('admin'),
+  authorize('admin', 'pharmacist'),
   adminUpdateValidator,
   validate,
   auditLog('user.role_update', 'User'),

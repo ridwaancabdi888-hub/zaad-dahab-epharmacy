@@ -74,11 +74,23 @@ async function listMine(userId, query) {
   return { items, meta: buildMeta({ page, limit, total }) };
 }
 
-/** Admin-only manual override: mark a payment paid regardless of what the gateway says. */
-async function confirm(id) {
+/**
+ * Manual override: mark a payment paid regardless of what the gateway
+ * says. Admins can confirm any payment; a pharmacist may only confirm a
+ * payment for an order containing at least one of their own pharmacy's
+ * items (same boundary as viewing/cancelling the order or assigning its
+ * delivery a rider).
+ */
+async function confirm(id, actingUser) {
   const payment = await Payment.findById(id);
   if (!payment) {
     throw ApiError.notFound('Payment not found');
+  }
+  if (actingUser.role !== 'admin') {
+    const order = await Order.findById(payment.order);
+    if (!order || !orderService.userCanAccessOrder(order, actingUser)) {
+      throw ApiError.forbidden('You do not have permission to confirm this payment');
+    }
   }
   if (payment.status === 'completed') {
     return payment;
