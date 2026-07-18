@@ -4,6 +4,12 @@ A full-stack e-pharmacy platform for Somalia: a Flutter mobile app (customers + 
 
 Built in phases — each phase is implemented, tested, and committed before moving to the next. Every external integration without real credentials in this environment (Zaad/e-Dahab merchant accounts, Google Maps API key, Firebase) is built as a real, production-shaped interface with an honest, clearly-labeled sandbox/fallback behavior — never faked success.
 
+## Live Demo
+
+- **Admin panel:** https://zaad-dahab-epharmacy.vercel.app
+
+The frontend is deployed on Vercel. Set `VITE_API_BASE_URL` to the production backend API URL to enable authentication and live pharmacy data.
+
 ## Repository layout
 
 ```
