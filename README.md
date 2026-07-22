@@ -10,6 +10,12 @@ Built in phases — each phase is implemented, tested, and committed before movi
 
 The frontend is deployed on Vercel. Set `VITE_API_BASE_URL` to the production backend API URL to enable authentication and live pharmacy data.
 
+### Search indexing policy
+
+The deployed URL is a private administration interface, not a public pharmacy storefront. The admin HTML, HTTP responses, and `robots.txt` therefore instruct search engines not to index login, customer, order, payment, reporting, role, or audit-log routes. A sitemap, public product schema, Search Console submission, and local-business profile are intentionally not provided for this dashboard.
+
+If a verified public storefront is deployed later, give it a separate canonical domain and publish only licensed pharmacy details, real contact information, current medicine data, prescription rules, delivery areas, and legally reviewed policies. That public site should receive its own metadata, sitemap, structured data, Search Console property, and—when the business details are verified—Google Business Profile.
+
 ## Repository layout
 
 ```
