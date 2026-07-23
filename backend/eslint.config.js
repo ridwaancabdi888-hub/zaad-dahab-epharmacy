@@ -18,6 +18,15 @@ module.exports = [
     },
   },
   {
+    // CLI scripts are run by hand and print progress to the terminal — console
+    // output is their intended interface, not a mistake. Left as a warning
+    // everywhere else so stray debug logging in the server still gets flagged.
+    files: ['scripts/**/*.js'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     ignores: ['node_modules/', 'coverage/'],
   },
 ];
