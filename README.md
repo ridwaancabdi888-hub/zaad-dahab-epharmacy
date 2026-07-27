@@ -38,11 +38,27 @@ DESIGN.md      Visual design system reference shared by the mobile app and admin
 
 Each app has its own detailed README. In short:
 
-```bash
-# Backend
-cd backend && cp .env.example .env && npm install && npm run dev
-# → API at http://localhost:5000/api/v1, interactive docs at http://localhost:5000/api-docs
+Choose the backend setup commands for your operating system:
 
+```bash
+# Backend — macOS or Linux
+cd backend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+```powershell
+# Backend — Windows PowerShell
+cd backend
+Copy-Item .env.example .env
+npm install
+npm run dev
+```
+
+The API runs at `http://localhost:5000/api/v1`, with interactive documentation at `http://localhost:5000/api-docs`.
+
+```bash
 # Admin panel (needs the backend running, and an admin account — see backend/README.md's Roles section)
 cd admin-panel && npm install && npm run dev
 # → http://localhost:5173
