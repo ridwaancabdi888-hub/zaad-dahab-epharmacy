@@ -38,6 +38,15 @@ The API base URL defaults to `http://localhost:5000/api/v1`. Override it with:
 VITE_API_BASE_URL=http://localhost:5000/api/v1 npm run dev
 ```
 
+## Available scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Vite development server |
+| `npm run build` | Create an optimized production build |
+| `npm run lint` | Check the admin-panel source with ESLint |
+| `npm run preview` | Preview the production build locally after running `npm run build` |
+
 ## Architecture
 
 ```
