@@ -78,7 +78,7 @@ It's generated from a single hand-maintained YAML file, not decorator comments s
 ## Security
 
 - **Auth**: bcrypt (cost 12) password hashing; JWT access + rotating/revocable refresh tokens, both signed and verified with an explicit `algorithm: 'HS256'` (no algorithm-confusion surface, even though only symmetric secrets are used today)
-- **Rate limiting**: a strict limiter on `/auth/*` (20 req/15min by default) plus a generous app-wide backstop on every other route (300 req/15min by default) so no client — or bug in a client — can hammer expensive endpoints (search, report aggregation) into a denial of service
+- **Rate limiting**: a strict limiter on `/auth/*` (20 req/15min by default) plus a generous app-wide backstop on every other route (300 req/15min by default). Counters are stored atomically in MongoDB, so the limits are shared by every backend instance instead of resetting independently per process
 - **Input sanitization**: `sanitizeBody` middleware strips `$`-prefixed and dotted keys from `req.body` (NoSQL operator injection); any string interpolated into a Mongo `$regex` (e.g. the pharmacy directory's `city` filter) is escaped first (`utils/escapeRegExp.js`) to prevent both ReDoS and regex-metacharacter injection
 - **Production fail-fast**: `config/env.js` refuses to start in `NODE_ENV=production` if JWT secrets are short (<32 chars) or identical to each other, a webhook secret is missing or still at its sandbox default, or `CORS_ORIGIN` is unset/`*` — see `config/validateProductionEnv.js` (unit-tested in isolation) rather than surfacing as a security incident later
 - **Webhook signatures**: HMAC-SHA256 over the raw request body, compared with `crypto.timingSafeEqual` (not `===`) to avoid a timing side-channel
