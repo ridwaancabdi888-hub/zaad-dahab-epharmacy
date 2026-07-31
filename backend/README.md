@@ -50,6 +50,7 @@ npm run seed              # optional: one account per role + a sample catalog �
 | `npm run dev:mongo` | Start a real local MongoDB for development (no install required, data doesn't persist) — see `scripts/dev-mongo.js` |
 | `npm run seed` | Seed one account per role + a sample pharmacy/catalog/coupon — see `scripts/seed.js` and "Seeded test accounts" below |
 | `npm test` | Run the full Jest suite (spins up an in-memory MongoDB) |
+| `npm run test:watch` | Re-run the Jest suite when test or source files change |
 | `npm run test:coverage` | Run tests with coverage report |
 | `npm run lint` | Lint the codebase with ESLint |
 
