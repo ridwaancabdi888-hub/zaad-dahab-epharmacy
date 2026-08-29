@@ -60,11 +60,15 @@ The API runs at `http://localhost:5000/api/v1`, with interactive documentation a
 
 ```bash
 # Admin panel (needs the backend running, and an admin account — see backend/README.md's Roles section)
-cd admin-panel && npm install && npm run dev
+cd admin-panel
+npm install
+npm run dev
 # → http://localhost:5173
 
 # Mobile
-cd mobile && flutter pub get && flutter run -d chrome
+cd mobile
+flutter pub get
+flutter run -d chrome
 ```
 
 See [backend/README.md](backend/README.md), [mobile/README.md](mobile/README.md), and [admin-panel/README.md](admin-panel/README.md) for full setup, environment variables, and architecture notes.
