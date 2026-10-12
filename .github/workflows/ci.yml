@@ -69,3 +69,33 @@ jobs:
 
       - name: Build admin panel
         run: npm run build
+
+  mobile:
+    name: Mobile analyze, tests, and web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze mobile app
+        run: flutter analyze
+
+      - name: Run mobile tests
+        run: flutter test --reporter expanded
+
+      - name: Build mobile web app
+        run: flutter build web --release
