@@ -19,6 +19,7 @@ class WishlistHeartButton extends ConsumerWidget {
     );
 
     return IconButton(
+      tooltip: isSaved ? 'Remove from wishlist' : 'Add to wishlist',
       icon: Icon(
         isSaved ? Icons.favorite : Icons.favorite_border,
         color: isSaved ? AppColors.error : AppColors.outline,

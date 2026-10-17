@@ -168,6 +168,7 @@ class _QuantityStepper extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
+            tooltip: 'Decrease quantity',
             icon: const Icon(Icons.remove, size: 16),
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             padding: EdgeInsets.zero,
@@ -175,9 +176,14 @@ class _QuantityStepper extends StatelessWidget {
           ),
           SizedBox(
             width: 20,
-            child: Text('$quantity', textAlign: TextAlign.center),
+            child: Text(
+              '$quantity',
+              semanticsLabel: 'Quantity: $quantity',
+              textAlign: TextAlign.center,
+            ),
           ),
           IconButton(
+            tooltip: 'Increase quantity',
             icon: const Icon(Icons.add, size: 16),
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             padding: EdgeInsets.zero,

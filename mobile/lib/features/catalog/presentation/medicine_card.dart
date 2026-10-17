@@ -143,6 +143,9 @@ class _AddButton extends ConsumerWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
       child: IconButton(
+        tooltip: medicine.inStock
+            ? 'Add ${medicine.name} to cart'
+            : '${medicine.name} is out of stock',
         icon: const Icon(Icons.add, color: Colors.white, size: 18),
         constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         padding: EdgeInsets.zero,

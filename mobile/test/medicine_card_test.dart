@@ -61,5 +61,44 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Extra Strength'), findsOneWidget);
+    expect(
+      find.byTooltip('Add Extra Strength Broad-Spectrum Cold & Flu Relief Tablets 500mg to cart'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Add to wishlist'), findsOneWidget);
+  });
+
+  testWidgets('MedicineCard gives an unavailable add button a descriptive label', (tester) async {
+    const medicine = MedicineModel(
+      id: 'med2',
+      name: 'Unavailable Medicine',
+      unit: '10 Tablets',
+      price: 5.99,
+      stock: 0,
+      requiresPrescription: false,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          wishlistControllerProvider.overrideWith(
+            (ref) => WishlistController(_FakeWishlistRepository()),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 170,
+              height: 260,
+              child: MedicineCard(medicine: medicine),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.byTooltip('Unavailable Medicine is out of stock'), findsOneWidget);
   });
 }
