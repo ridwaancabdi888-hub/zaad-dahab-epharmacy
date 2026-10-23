@@ -21,6 +21,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
   String _query = '';
+  bool _hasInput = false;
 
   @override
   void dispose() {
@@ -31,8 +32,32 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _onChanged(String value) {
     _debounce?.cancel();
+
+    final hasInput = value.isNotEmpty;
+    if (_hasInput != hasInput) {
+      setState(() => _hasInput = hasInput);
+    }
+
+    if (value.trim().isEmpty) {
+      if (_query.isNotEmpty) {
+        setState(() => _query = '');
+      }
+      return;
+    }
+
     _debounce = Timer(const Duration(milliseconds: 400), () {
       setState(() => _query = value.trim());
+    });
+  }
+
+  void _clearSearch() {
+    // A pending debounce must not restore the query after the field has
+    // already been cleared.
+    _debounce?.cancel();
+    _controller.clear();
+    setState(() {
+      _hasInput = false;
+      _query = '';
     });
   }
 
@@ -51,14 +76,11 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
         actions: [
-          if (_controller.text.isNotEmpty)
+          if (_hasInput)
             IconButton(
               tooltip: 'Clear search',
               icon: const Icon(Icons.close),
-              onPressed: () {
-                _controller.clear();
-                setState(() => _query = '');
-              },
+              onPressed: _clearSearch,
             ),
         ],
       ),
