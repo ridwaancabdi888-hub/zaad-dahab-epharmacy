@@ -43,7 +43,7 @@ jobs:
         run: npm test
 
   admin-panel:
-    name: Admin panel lint and build
+    name: Admin panel lint, tests, and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -66,6 +66,9 @@ jobs:
 
       - name: Lint admin panel
         run: npm run lint
+
+      - name: Test admin panel
+        run: npm test
 
       - name: Build admin panel
         run: npm run build
