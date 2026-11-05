@@ -56,7 +56,7 @@ export default function AppShell() {
   const navItems = isPharmacist ? PHARMACIST_NAV_ITEMS : ADMIN_NAV_ITEMS;
 
   // On narrow screens the sidebar becomes an off-canvas drawer (see the
-  // `max-width: 900px` block in index.css); on desktop this flag is ignored.
+  // `max-width: 900px` block in AppShell.css); on desktop it has no effect.
   const [isNavOpen, setIsNavOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const closeButtonRef = useRef(null);
