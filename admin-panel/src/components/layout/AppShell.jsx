@@ -1,10 +1,14 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import './AppShell.css';
 import {
   AuditIcon,
   CategoryIcon,
+  CloseIcon,
   DashboardIcon,
   LogoutIcon,
+  MenuIcon,
   OrderIcon,
   PaymentIcon,
   PillIcon,
@@ -51,9 +55,47 @@ export default function AppShell() {
   const isPharmacist = user?.role === 'pharmacist';
   const navItems = isPharmacist ? PHARMACIST_NAV_ITEMS : ADMIN_NAV_ITEMS;
 
+  // On narrow screens the sidebar becomes an off-canvas drawer (see the
+  // `max-width: 900px` block in index.css); on desktop this flag is ignored.
+  const [isNavOpen, setIsNavOpen] = useState(false);
+  const menuButtonRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const location = useLocation();
+
+  // Any navigation (link tap, back/forward) should reveal the new page.
+  useEffect(() => {
+    setIsNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isNavOpen) return undefined;
+    // Move keyboard focus into the drawer so it can be navigated at once.
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsNavOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isNavOpen]);
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell${isNavOpen ? ' nav-open' : ''}`}>
+      <aside id="app-sidebar" className="sidebar" aria-label="Main navigation">
+        <button
+          ref={closeButtonRef}
+          type="button"
+          className="sidebar-close"
+          aria-label="Close navigation menu"
+          onClick={() => {
+            setIsNavOpen(false);
+            menuButtonRef.current?.focus();
+          }}
+        >
+          <CloseIcon />
+        </button>
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">Z</div>
           <div className="sidebar-brand-text">
@@ -85,11 +127,26 @@ export default function AppShell() {
         </div>
       </aside>
 
+      <div className="sidebar-backdrop" aria-hidden="true" onClick={() => setIsNavOpen(false)} />
+
       <div className="main-area">
         <header className="topbar">
-          <div className="topbar-title">{isPharmacist ? 'Pharmacy Orders' : 'Admin Dashboard'}</div>
+          <div className="topbar-start">
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className="topbar-menu-button"
+              aria-label="Open navigation menu"
+              aria-controls="app-sidebar"
+              aria-expanded={isNavOpen}
+              onClick={() => setIsNavOpen(true)}
+            >
+              <MenuIcon />
+            </button>
+            <div className="topbar-title">{isPharmacist ? 'Pharmacy Orders' : 'Admin Dashboard'}</div>
+          </div>
           <div className="topbar-user">
-            <div style={{ textAlign: 'right' }}>
+            <div className="topbar-user-details">
               <div style={{ fontSize: 13.5, fontWeight: 600 }}>{user?.name}</div>
               <div style={{ fontSize: 12, color: 'var(--color-on-surface-variant)' }}>{user?.email}</div>
             </div>

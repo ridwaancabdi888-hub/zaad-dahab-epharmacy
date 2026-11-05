@@ -1,0 +1,173 @@
+/* App shell chrome that isn't in index.css: the topbar menu button and
+   the off-canvas sidebar drawer used on tablets and phones. Imported by
+   AppShell.jsx, so it loads after index.css and its media queries win. */
+
+.topbar-start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.topbar-user {
+  min-width: 0;
+}
+
+.topbar-user-details {
+  text-align: right;
+  min-width: 0;
+}
+
+/* Drawer controls only exist on narrow screens (see the responsive block). */
+.topbar-menu-button,
+.sidebar-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+
+.topbar-menu-button:hover,
+.sidebar-close:hover {
+  background: var(--color-surface-container-low);
+}
+
+.topbar-menu-button:focus-visible,
+.sidebar-close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Inset so the ring isn't clipped by the scrollable nav list. */
+.sidebar-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+/* ---------- Responsive: tablet & phone ----------
+   Below 900px the fixed 248px sidebar would leave too little room for
+   tables and forms, so it turns into an off-canvas drawer opened from the
+   topbar's menu button. `visibility: hidden` keeps the closed drawer's
+   links out of the tab order and away from screen readers. */
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: min(280px, 85vw);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .nav-open .sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar-close {
+    display: inline-flex;
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-sm);
+  }
+
+  .sidebar-brand {
+    padding-right: 48px;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(25, 28, 29, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .nav-open .sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .topbar-menu-button {
+    display: inline-flex;
+    margin-left: -8px;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 0 var(--space-md);
+    gap: var(--space-sm);
+  }
+
+  .topbar-title {
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page {
+    padding: var(--space-lg) var(--space-md);
+  }
+}
+
+@media (max-width: 600px) {
+  /* The avatar alone identifies the session on phones. */
+  .topbar-user-details {
+    display: none;
+  }
+
+  .page {
+    padding: var(--space-md);
+  }
+
+  .page-title {
+    font-size: 20px;
+  }
+
+  .card {
+    padding: var(--space-md);
+  }
+
+  .toolbar .search-input {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+  }
+
+  .modal {
+    padding: var(--space-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav-open .sidebar,
+  .sidebar-backdrop {
+    transition: none;
+  }
+}
