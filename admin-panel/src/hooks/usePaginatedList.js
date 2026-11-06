@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { clampPage } from '../utils/pagination.js';
 
 /**
  * Standardizes the page/filter/loading/error state every admin list
@@ -21,6 +22,16 @@ export function usePaginatedList(fetchPage, { limit = 20, filters = {} } = {}) {
     setError(null);
     try {
       const result = await fetchPage({ page, limit, ...JSON.parse(filterKey) });
+      const validPage = clampPage(page, result.meta?.totalPages);
+
+      // Deleting the final item on the final page can make the requested
+      // page disappear. Move to the new last page and let the effect fetch
+      // it instead of leaving the user stranded on an empty result screen.
+      if (validPage !== page) {
+        setPage(validPage);
+        return;
+      }
+
       setItems(result.items);
       setMeta(result.meta);
     } catch (err) {
