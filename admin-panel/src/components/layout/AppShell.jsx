@@ -1,10 +1,13 @@
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { getFocusableElements, getNextFocusable, restoreFocus } from '../../utils/modalFocus';
 import {
   AuditIcon,
   CategoryIcon,
   DashboardIcon,
   LogoutIcon,
+  MenuIcon,
   OrderIcon,
   PaymentIcon,
   PillIcon,
@@ -50,10 +53,62 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const isPharmacist = user?.role === 'pharmacist';
   const navItems = isPharmacist ? PHARMACIST_NAV_ITEMS : ADMIN_NAV_ITEMS;
+  const [navOpen, setNavOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 800px)').matches);
+  const sidebarRef = useRef(null);
+  const menuButtonRef = useRef(null);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 800px)');
+    const syncViewport = (event) => {
+      setIsMobile(event.matches);
+      if (!event.matches) setNavOpen(false);
+    };
+    media.addEventListener('change', syncViewport);
+    return () => media.removeEventListener('change', syncViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!navOpen) return undefined;
+
+    const sidebar = sidebarRef.current;
+    const menuButton = menuButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    getFocusableElements(sidebar)[0]?.focus();
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setNavOpen(false);
+        return;
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        getNextFocusable(sidebar, document.activeElement, event.shiftKey)?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      restoreFocus(menuButton);
+    };
+  }, [navOpen]);
+
+  const closeNavigation = () => setNavOpen(false);
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside
+        ref={sidebarRef}
+        id="admin-navigation"
+        className={`sidebar${navOpen ? ' mobile-open' : ''}`}
+        aria-label="Admin navigation"
+        aria-hidden={isMobile && !navOpen}
+        inert={isMobile && !navOpen ? true : undefined}
+      >
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">Z</div>
           <div className="sidebar-brand-text">
@@ -70,6 +125,7 @@ export default function AppShell() {
               to={to}
               end={end}
               className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
+              onClick={closeNavigation}
             >
               <Icon className="icon" />
               {label}
@@ -85,9 +141,31 @@ export default function AppShell() {
         </div>
       </aside>
 
+      {navOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={closeNavigation}
+        />
+      )}
+
       <div className="main-area">
         <header className="topbar">
-          <div className="topbar-title">{isPharmacist ? 'Pharmacy Orders' : 'Admin Dashboard'}</div>
+          <div className="topbar-heading">
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className="menu-toggle"
+              aria-label="Open navigation"
+              aria-controls="admin-navigation"
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen((open) => !open)}
+            >
+              <MenuIcon aria-hidden="true" />
+            </button>
+            <div className="topbar-title">{isPharmacist ? 'Pharmacy Orders' : 'Admin Dashboard'}</div>
+          </div>
           <div className="topbar-user">
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 13.5, fontWeight: 600 }}>{user?.name}</div>
